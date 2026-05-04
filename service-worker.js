@@ -1,7 +1,7 @@
 /* Tech Toys Quotation App — Auto-update service worker
    Network-first: always tries the latest files from GitHub Pages.
    It does NOT keep old index.html stuck in cache. */
-const CACHE_NAME = 'techtoys-quotation-auto-v2';
+const CACHE_NAME = 'techtoys-quotation-live-sync-v1';
 const STATIC_FILES = [
   './manifest.webmanifest',
   './assets/icon-192.png',
