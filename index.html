@@ -3106,5 +3106,57 @@ window.addEventListener('hashchange', ()=>{
 
 if(isLoggedIn()) showApp();
 </script>
+
+<script>
+/* Tech Toys Auto Update Fix
+   Clears old PWA caches and forces the newest GitHub Pages version to load. */
+(function(){
+  const BUILD_VERSION = '2026-05-04-auto-update-v2';
+  const BUILD_KEY = 'techToys_build_version';
+
+  async function clearOldCaches(){
+    if (!('caches' in window)) return;
+    const keys = await caches.keys();
+    await Promise.all(keys
+      .filter(k => k.startsWith('techtoys-quotation') && k !== 'techtoys-quotation-auto-v2')
+      .map(k => caches.delete(k))
+    );
+  }
+
+  async function registerAutoUpdateSW(){
+    if (!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.register('./service-worker.js?v=' + encodeURIComponent(BUILD_VERSION), {
+      scope: './',
+      updateViaCache: 'none'
+    });
+    await reg.update();
+    if (reg.waiting) reg.waiting.postMessage({type:'SKIP_WAITING'});
+    reg.addEventListener('updatefound', () => {
+      const worker = reg.installing;
+      if (!worker) return;
+      worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+          worker.postMessage({type:'SKIP_WAITING'});
+          setTimeout(() => location.reload(), 500);
+        }
+      });
+    });
+  }
+
+  window.addEventListener('load', async () => {
+    try{
+      await clearOldCaches();
+      await registerAutoUpdateSW();
+      const old = localStorage.getItem(BUILD_KEY);
+      if (old !== BUILD_VERSION) {
+        localStorage.setItem(BUILD_KEY, BUILD_VERSION);
+        // Reload once after update so old service-worker-controlled pages are replaced.
+        if (old) location.reload();
+      }
+    }catch(e){ console.warn('Auto update check failed', e); }
+  });
+})();
+</script>
+
 </body>
 </html>
