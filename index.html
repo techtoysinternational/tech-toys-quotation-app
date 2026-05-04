@@ -388,11 +388,13 @@ function resetDB(){
 const CLOUD_COLLECTION = 'techtoys';
 const CLOUD_DOC = 'appState';
 let CLOUD_DB = null;
+let CLOUD_REF = null;
 let CLOUD_READY = false;
 let CLOUD_LOADING = false;
 let CLOUD_IMPORTING = false;
 let CLOUD_SAVE_TIMER = null;
 let CLOUD_LAST_SAVE = '';
+let CLOUD_PENDING_SAVE = false;
 
 function cloudStatusText(txt){
   const footer = document.querySelector('.nav-footer');
@@ -403,36 +405,68 @@ function cloudStatusText(txt){
     el.id = 'cloudStatus';
     el.style.marginTop = '6px';
     el.style.fontSize = '11px';
+    el.style.fontWeight = '600';
     footer.appendChild(el);
   }
   el.textContent = txt;
 }
 
+function showCloudError(err){
+  const msg = (err && (err.message || err.code)) ? (err.message || err.code) : String(err || 'Unknown error');
+  console.error('Firebase cloud error:', err);
+  cloudStatusText('⚠ Cloud error');
+  toast('Cloud save failed. Check Firestore Rules.');
+  const box = document.createElement('div');
+  box.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:9999;background:#3a1515;color:#ffdddd;border:1px solid #ef4444;border-radius:10px;padding:12px 14px;font-size:13px;box-shadow:0 10px 40px rgba(0,0,0,.5)';
+  box.innerHTML = `<b>Firebase is not allowing save.</b><br>Open Firebase → Firestore Database → Rules and temporarily allow read/write for testing.<br><small>${escapeHTML(msg).slice(0,240)}</small><button style="float:right;margin-left:8px;color:#fff" onclick="this.parentElement.remove()">✕</button>`;
+  document.body.appendChild(box);
+  setTimeout(()=>{ try{ box.remove(); }catch(e){} }, 12000);
+}
+
 function initCloudSync(){
   if(CLOUD_LOADING || CLOUD_READY) return;
   CLOUD_LOADING = true;
-  cloudStatusText('☁ Connecting to cloud…');
+  cloudStatusText('☁ Connecting to Firebase…');
   try{
     if(!window.firebase || !firebase.firestore){
-      cloudStatusText('⚠ Cloud SDK not loaded');
+      CLOUD_LOADING = false;
+      cloudStatusText('⚠ Firebase SDK not loaded');
       console.warn('Firebase SDK not loaded. Data will stay local until Firebase loads.');
       return;
     }
     if(!firebase.apps.length){ firebase.initializeApp(FIREBASE_CONFIG); }
     CLOUD_DB = firebase.firestore();
-    try{ CLOUD_DB.enablePersistence && CLOUD_DB.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
+    CLOUD_REF = CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC);
 
-    const ref = CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC);
+    // Useful manual test from browser console: forceCloudPush()
+    window.forceCloudPush = async function(){
+      if(!DB) loadDB();
+      DB.updated = new Date().toISOString();
+      const payload = JSON.parse(JSON.stringify(DB));
+      await CLOUD_REF.set({
+        db: payload,
+        updated: firebase.firestore.FieldValue.serverTimestamp(),
+        updated_iso: DB.updated,
+        client_hint: navigator.userAgent || 'browser'
+      }, { merge: true });
+      CLOUD_LAST_SAVE = DB.updated;
+      cloudStatusText('☁ Force pushed to Firebase');
+      toast('Force pushed to Firebase');
+      return true;
+    };
 
     // Real-time listener: every device receives the same DB automatically.
     if(window.__techToysCloudUnsub) window.__techToysCloudUnsub();
-    window.__techToysCloudUnsub = ref.onSnapshot(doc=>{
+    window.__techToysCloudUnsub = CLOUD_REF.onSnapshot(doc=>{
+      CLOUD_READY = true;
+      CLOUD_LOADING = false;
+
       if(doc.exists && doc.data() && doc.data().db){
         const remoteDB = doc.data().db;
         const remoteUpdated = remoteDB.updated || doc.data().updated_iso || '';
 
         // Avoid unnecessary re-render loops from our own last save.
-        if(CLOUD_READY && remoteUpdated && remoteUpdated === CLOUD_LAST_SAVE){
+        if(remoteUpdated && remoteUpdated === CLOUD_LAST_SAVE){
           cloudStatusText('☁ Saved to cloud');
           return;
         }
@@ -441,34 +475,34 @@ function initCloudSync(){
         DB = remoteDB;
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(e){}
         CLOUD_IMPORTING = false;
-        CLOUD_READY = true;
-        CLOUD_LOADING = false;
         CLOUD_LAST_SAVE = remoteUpdated;
         cloudStatusText('☁ Live sync active');
         renderAfterCloudLoad();
       } else {
-        CLOUD_READY = true;
-        CLOUD_LOADING = false;
+        // First device creates the shared cloud document using current local data/seed.
+        cloudStatusText('☁ Creating cloud database…');
+        forceCloudPush().catch(showCloudError);
+      }
+
+      if(CLOUD_PENDING_SAVE){
+        CLOUD_PENDING_SAVE = false;
         queueCloudSave(true);
-        cloudStatusText('☁ Cloud database created');
-        toast('Cloud database created');
       }
     }, err=>{
-      console.error('Cloud live sync failed:', err);
       CLOUD_LOADING = false;
-      cloudStatusText('⚠ Cloud error — using local cache');
-      toast('Cloud connection failed. Check Firestore rules.');
+      CLOUD_READY = false;
+      showCloudError(err);
     });
   }catch(err){
-    console.error('Cloud init failed:', err);
     CLOUD_LOADING = false;
-    cloudStatusText('⚠ Cloud init failed');
+    showCloudError(err);
   }
 }
 
 function renderAfterCloudLoad(){
   if(!DB) return;
-  document.getElementById('navUser').textContent = (DB.company && (DB.company.contact_person || DB.company.name)) || 'Tech Toys';
+  const navUser = document.getElementById('navUser');
+  if(navUser) navUser.textContent = (DB.company && (DB.company.contact_person || DB.company.name)) || 'Tech Toys';
   renderFYSelector();
   const [view, param] = parseHash();
   navigate(view, param);
@@ -477,27 +511,28 @@ function renderAfterCloudLoad(){
 function queueCloudSave(immediate=false){
   if(CLOUD_IMPORTING || !DB) return;
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(e){}
-  if(!CLOUD_READY || !CLOUD_DB) return;
+  if(!CLOUD_READY || !CLOUD_DB || !CLOUD_REF){
+    CLOUD_PENDING_SAVE = true;
+    return;
+  }
   clearTimeout(CLOUD_SAVE_TIMER);
   const doSave = async ()=>{
     try{
       DB.updated = new Date().toISOString();
       const payload = JSON.parse(JSON.stringify(DB));
-      await CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC).set({
+      await CLOUD_REF.set({
         db: payload,
         updated: firebase.firestore.FieldValue.serverTimestamp(),
         updated_iso: DB.updated,
         client_hint: navigator.userAgent || 'browser'
       }, { merge: true });
       CLOUD_LAST_SAVE = DB.updated;
-      cloudStatusText('☁ Saved to cloud');
+      cloudStatusText('☁ Saved to Firebase');
     }catch(err){
-      console.error('Cloud save failed:', err);
-      cloudStatusText('⚠ Cloud save failed — local backup kept');
-      toast('Cloud save failed. Data is still saved locally.');
+      showCloudError(err);
     }
   };
-  CLOUD_SAVE_TIMER = setTimeout(doSave, immediate ? 0 : 400);
+  CLOUD_SAVE_TIMER = setTimeout(doSave, immediate ? 0 : 250);
 }
 
 /* -------- Snapshots (versioned saves) -------- */
@@ -3130,14 +3165,14 @@ if(isLoggedIn()) showApp();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-05-04-firebase-live-sync-v1';
+  const BUILD_VERSION = '2026-05-04-firebase-final-v2';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
     if (!('caches' in window)) return;
     const keys = await caches.keys();
     await Promise.all(keys
-      .filter(k => k.startsWith('techtoys-quotation') && k !== 'techtoys-quotation-auto-v2')
+      .filter(k => k.startsWith('techtoys-quotation') && k !== 'techtoys-quotation-auto-v3')
       .map(k => caches.delete(k))
     );
   }
