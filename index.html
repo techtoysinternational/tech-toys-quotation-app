@@ -165,43 +165,56 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 
 /* Print / PDF export */
 @media print {
-  body { background:#fff !important; color:#000 !important; }
+  @page { size: A4; margin: 0; }
+  body { background:#fff !important; color:#0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .app, .sidebar, .modal-wrap, .login-wrap, .toast, #print-only { display:none !important; }
   #print-area { display:block !important; }
 }
 #print-area{display:none}
-.print-page{width:210mm;min-height:297mm;padding:18mm 16mm;margin:0 auto;background:#fff;color:#222;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11pt;line-height:1.45}
-.print-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #ff7a2f;padding-bottom:14px;margin-bottom:18px}
-.print-brand{font-size:30pt;font-weight:800;letter-spacing:-1px;color:#1a1a1a;line-height:1}
-.print-tag{font-size:9pt;color:#666;margin-top:3px;letter-spacing:.5px}
-.print-meta{text-align:right;font-size:9.5pt;color:#444}
-.print-meta .pi{font-weight:700;color:#ff7a2f;font-size:13pt}
-.print-section-title{font-size:9pt;color:#999;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px}
-.print-cust{display:flex;justify-content:space-between;margin-bottom:18px;gap:30px}
-.print-cust-block{flex:1}
-.print-cust .name{font-size:13pt;font-weight:700;color:#1a1a1a;margin-bottom:3px}
-.print-cust .addr{color:#555;font-size:10pt}
-.print-tbl{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:9.5pt}
-.print-tbl thead th{background:#1a1a1a;color:#fff;text-align:left;padding:8px 9px;font-size:9pt;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
-.print-tbl thead th.num{text-align:right}
-.print-tbl tbody td{padding:9px 9px;border-bottom:1px solid #eee;vertical-align:top}
+.print-page{width:210mm;min-height:297mm;margin:0 auto;background:#f7f8fb;color:#101828;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:9.5pt;line-height:1.4;position:relative;overflow:hidden}
+.print-page::before{content:"";position:absolute;top:0;left:0;right:0;height:7mm;background:linear-gradient(90deg,#0b0e14 0%,#202638 55%,#ff7a2f 100%)}
+.print-inner{padding:18mm 15mm 12mm;position:relative;z-index:1}
+.print-card{background:#fff;border:1px solid #e6e8ee;border-radius:14px;box-shadow:0 10px 28px rgba(15,23,42,.08);overflow:hidden}
+.print-header{display:grid;grid-template-columns:1.45fr .75fr;gap:14mm;padding:13mm 12mm 8mm;background:#fff;border-bottom:1px solid #eceff5}
+.print-brand{font-size:28pt;font-weight:900;letter-spacing:-1.2px;color:#0b0e14;line-height:.95;text-transform:uppercase}
+.print-tag{font-size:9pt;color:#ff7a2f;margin-top:4px;letter-spacing:.8px;font-weight:700;text-transform:uppercase}
+.print-company{font-size:8.6pt;color:#667085;margin-top:8px;line-height:1.5}
+.print-meta{text-align:right;align-self:start;background:#111827;color:#fff;border-radius:12px;padding:10mm 8mm;min-height:37mm}
+.print-meta .title{font-size:10pt;font-weight:800;letter-spacing:1.8px;text-transform:uppercase;color:#ffb27e;margin-bottom:5px}
+.print-meta .pi{font-size:18pt;font-weight:900;color:#fff;line-height:1.1}
+.print-meta .date{font-size:9pt;color:#d1d5db;margin-top:7px}
+.print-summary{display:grid;grid-template-columns:1.35fr .65fr;gap:8mm;padding:8mm 12mm 5mm;background:#fbfcff}
+.print-section-title{font-size:7.6pt;color:#98a2b3;text-transform:uppercase;letter-spacing:1.2px;font-weight:800;margin-bottom:4px}
+.print-cust-box,.print-status-box{background:#fff;border:1px solid #e6e8ee;border-radius:12px;padding:7mm;min-height:32mm}
+.print-cust-box .name{font-size:15pt;font-weight:900;color:#101828;text-transform:uppercase;letter-spacing:.2px;margin-bottom:3px}
+.print-cust-box .addr{color:#667085;font-size:8.8pt;line-height:1.45}
+.print-status-box{text-align:right;display:flex;flex-direction:column;justify-content:center}
+.print-status-pill{display:inline-flex;align-self:flex-end;padding:6px 12px;border-radius:999px;font-size:10pt;font-weight:900;background:#ecfdf5;color:#039855;border:1px solid #a6f4c5;text-transform:uppercase;letter-spacing:.4px}
+.print-status-pill.warn{background:#fff7ed;color:#f97316;border-color:#fed7aa}
+.print-status-pill.bad{background:#fef2f2;color:#ef4444;border-color:#fecaca}
+.print-table-wrap{padding:5mm 12mm 0;background:#fff}
+.print-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:8.6pt;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
+.print-tbl thead th{background:#111827;color:#fff;text-align:left;padding:8px 8px;font-size:7.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.55px;border-right:1px solid rgba(255,255,255,.14)}
+.print-tbl thead th:last-child{border-right:none}.print-tbl thead th.num{text-align:right}
+.print-tbl tbody td{padding:8px 8px;border-bottom:1px solid #eef0f5;vertical-align:top;background:#fff}
+.print-tbl tbody tr:nth-child(even) td{background:#fafbfc}.print-tbl tbody tr:last-child td{border-bottom:none}
 .print-tbl tbody td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.print-tbl tbody tr:nth-child(even){background:#fafafa}
-.print-tbl .item-make{font-weight:600;color:#1a1a1a}
-.print-tbl .item-desc{font-size:9pt;color:#666;margin-top:1px}
-.print-tbl .item-code{font-size:8pt;color:#888;margin-top:1px}
-.print-totals{margin-left:auto;width:280px;margin-bottom:18px}
-.print-totals tr td{padding:5px 0;font-size:10pt}
-.print-totals tr td:first-child{color:#666}
-.print-totals tr td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
-.print-totals tr.grand td{font-size:13pt;font-weight:700;color:#ff7a2f;border-top:2px solid #1a1a1a;padding-top:8px}
-.print-foot{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-top:22px;padding-top:14px;border-top:1px solid #ddd;font-size:9pt;color:#444}
-.print-foot .lbl{font-weight:700;color:#1a1a1a;margin-bottom:3px;font-size:9.5pt}
-.print-sign{margin-top:38px;display:flex;justify-content:space-between;align-items:flex-end}
-.print-sign-line{border-top:1px solid #999;width:180px;text-align:center;padding-top:5px;font-size:9pt;color:#666}
-.print-thanks{font-size:9pt;color:#999;font-style:italic}
-.print-watermark{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:8pt;color:#bbb;letter-spacing:1px}
-
+.print-tbl .item-make{font-weight:900;color:#111827;text-transform:uppercase;line-height:1.2}
+.print-tbl .item-desc{font-size:8pt;color:#667085;margin-top:2px}.print-tbl .item-code{font-size:7.4pt;color:#98a2b3;margin-top:3px}
+.print-money{display:grid;grid-template-columns:1fr 78mm;gap:8mm;padding:7mm 12mm 4mm;background:#fff;align-items:start}
+.print-note-box{border-left:4px solid #ff7a2f;background:#fff7ed;border-radius:10px;padding:6mm;color:#7c2d12;font-size:8.5pt;min-height:30mm}
+.print-note-box b{color:#111827}.print-totals{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e6e8ee;border-radius:12px;overflow:hidden;font-size:9pt}
+.print-totals tr td{padding:8px 10px;border-bottom:1px solid #edf0f5}.print-totals tr:last-child td{border-bottom:none}
+.print-totals tr td:first-child{color:#667085}.print-totals tr td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:800;color:#101828}
+.print-totals tr.grand td{font-size:13pt;font-weight:900;color:#fff;background:#ff7a2f;border-bottom:none}.print-totals tr.grand td:first-child{color:#fff;text-transform:uppercase;letter-spacing:.6px}
+.print-foot{display:grid;grid-template-columns:1fr 1fr;gap:8mm;padding:5mm 12mm 8mm;background:#fff}
+.print-foot-panel{border:1px solid #e6e8ee;border-radius:12px;padding:6mm;min-height:34mm;background:#fbfcff;color:#475467;font-size:8.6pt;line-height:1.5}
+.print-foot-panel .lbl{font-weight:900;color:#101828;margin-bottom:4px;text-transform:uppercase;letter-spacing:.7px;font-size:8.4pt}
+.print-terms-list div{padding-left:10px;position:relative;margin:2px 0}.print-terms-list div::before{content:"•";position:absolute;left:0;color:#ff7a2f;font-weight:900}
+.print-sign{display:flex;justify-content:space-between;align-items:flex-end;padding:2mm 12mm 10mm;background:#fff;border-top:1px solid #eceff5}
+.print-thanks{font-size:9pt;color:#667085;font-style:italic}.print-sign-box{text-align:center;color:#667085;font-size:8.5pt;min-width:55mm;padding-top:14mm;position:relative}
+.print-sign-box::before{content:"";position:absolute;left:0;right:0;top:8mm;border-top:1px solid #98a2b3}.print-sign-box b{color:#101828}
+.print-watermark{position:absolute;bottom:4mm;left:15mm;right:15mm;text-align:center;font-size:7.5pt;color:#98a2b3;letter-spacing:.5px}
 /* responsive */
 @media (max-width: 760px){
   .app{grid-template-columns:1fr}
@@ -388,13 +401,11 @@ function resetDB(){
 const CLOUD_COLLECTION = 'techtoys';
 const CLOUD_DOC = 'appState';
 let CLOUD_DB = null;
-let CLOUD_REF = null;
 let CLOUD_READY = false;
 let CLOUD_LOADING = false;
 let CLOUD_IMPORTING = false;
 let CLOUD_SAVE_TIMER = null;
 let CLOUD_LAST_SAVE = '';
-let CLOUD_PENDING_SAVE = false;
 
 function cloudStatusText(txt){
   const footer = document.querySelector('.nav-footer');
@@ -405,68 +416,36 @@ function cloudStatusText(txt){
     el.id = 'cloudStatus';
     el.style.marginTop = '6px';
     el.style.fontSize = '11px';
-    el.style.fontWeight = '600';
     footer.appendChild(el);
   }
   el.textContent = txt;
 }
 
-function showCloudError(err){
-  const msg = (err && (err.message || err.code)) ? (err.message || err.code) : String(err || 'Unknown error');
-  console.error('Firebase cloud error:', err);
-  cloudStatusText('⚠ Cloud error');
-  toast('Cloud save failed. Check Firestore Rules.');
-  const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:9999;background:#3a1515;color:#ffdddd;border:1px solid #ef4444;border-radius:10px;padding:12px 14px;font-size:13px;box-shadow:0 10px 40px rgba(0,0,0,.5)';
-  box.innerHTML = `<b>Firebase is not allowing save.</b><br>Open Firebase → Firestore Database → Rules and temporarily allow read/write for testing.<br><small>${escapeHTML(msg).slice(0,240)}</small><button style="float:right;margin-left:8px;color:#fff" onclick="this.parentElement.remove()">✕</button>`;
-  document.body.appendChild(box);
-  setTimeout(()=>{ try{ box.remove(); }catch(e){} }, 12000);
-}
-
 function initCloudSync(){
   if(CLOUD_LOADING || CLOUD_READY) return;
   CLOUD_LOADING = true;
-  cloudStatusText('☁ Connecting to Firebase…');
+  cloudStatusText('☁ Connecting to cloud…');
   try{
     if(!window.firebase || !firebase.firestore){
-      CLOUD_LOADING = false;
-      cloudStatusText('⚠ Firebase SDK not loaded');
+      cloudStatusText('⚠ Cloud SDK not loaded');
       console.warn('Firebase SDK not loaded. Data will stay local until Firebase loads.');
       return;
     }
     if(!firebase.apps.length){ firebase.initializeApp(FIREBASE_CONFIG); }
     CLOUD_DB = firebase.firestore();
-    CLOUD_REF = CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC);
+    try{ CLOUD_DB.enablePersistence && CLOUD_DB.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
 
-    // Useful manual test from browser console: forceCloudPush()
-    window.forceCloudPush = async function(){
-      if(!DB) loadDB();
-      DB.updated = new Date().toISOString();
-      const payload = JSON.parse(JSON.stringify(DB));
-      await CLOUD_REF.set({
-        db: payload,
-        updated: firebase.firestore.FieldValue.serverTimestamp(),
-        updated_iso: DB.updated,
-        client_hint: navigator.userAgent || 'browser'
-      }, { merge: true });
-      CLOUD_LAST_SAVE = DB.updated;
-      cloudStatusText('☁ Force pushed to Firebase');
-      toast('Force pushed to Firebase');
-      return true;
-    };
+    const ref = CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC);
 
     // Real-time listener: every device receives the same DB automatically.
     if(window.__techToysCloudUnsub) window.__techToysCloudUnsub();
-    window.__techToysCloudUnsub = CLOUD_REF.onSnapshot(doc=>{
-      CLOUD_READY = true;
-      CLOUD_LOADING = false;
-
+    window.__techToysCloudUnsub = ref.onSnapshot(doc=>{
       if(doc.exists && doc.data() && doc.data().db){
         const remoteDB = doc.data().db;
         const remoteUpdated = remoteDB.updated || doc.data().updated_iso || '';
 
         // Avoid unnecessary re-render loops from our own last save.
-        if(remoteUpdated && remoteUpdated === CLOUD_LAST_SAVE){
+        if(CLOUD_READY && remoteUpdated && remoteUpdated === CLOUD_LAST_SAVE){
           cloudStatusText('☁ Saved to cloud');
           return;
         }
@@ -475,34 +454,34 @@ function initCloudSync(){
         DB = remoteDB;
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(e){}
         CLOUD_IMPORTING = false;
+        CLOUD_READY = true;
+        CLOUD_LOADING = false;
         CLOUD_LAST_SAVE = remoteUpdated;
         cloudStatusText('☁ Live sync active');
         renderAfterCloudLoad();
       } else {
-        // First device creates the shared cloud document using current local data/seed.
-        cloudStatusText('☁ Creating cloud database…');
-        forceCloudPush().catch(showCloudError);
-      }
-
-      if(CLOUD_PENDING_SAVE){
-        CLOUD_PENDING_SAVE = false;
+        CLOUD_READY = true;
+        CLOUD_LOADING = false;
         queueCloudSave(true);
+        cloudStatusText('☁ Cloud database created');
+        toast('Cloud database created');
       }
     }, err=>{
+      console.error('Cloud live sync failed:', err);
       CLOUD_LOADING = false;
-      CLOUD_READY = false;
-      showCloudError(err);
+      cloudStatusText('⚠ Cloud error — using local cache');
+      toast('Cloud connection failed. Check Firestore rules.');
     });
   }catch(err){
+    console.error('Cloud init failed:', err);
     CLOUD_LOADING = false;
-    showCloudError(err);
+    cloudStatusText('⚠ Cloud init failed');
   }
 }
 
 function renderAfterCloudLoad(){
   if(!DB) return;
-  const navUser = document.getElementById('navUser');
-  if(navUser) navUser.textContent = (DB.company && (DB.company.contact_person || DB.company.name)) || 'Tech Toys';
+  document.getElementById('navUser').textContent = (DB.company && (DB.company.contact_person || DB.company.name)) || 'Tech Toys';
   renderFYSelector();
   const [view, param] = parseHash();
   navigate(view, param);
@@ -511,28 +490,27 @@ function renderAfterCloudLoad(){
 function queueCloudSave(immediate=false){
   if(CLOUD_IMPORTING || !DB) return;
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(e){}
-  if(!CLOUD_READY || !CLOUD_DB || !CLOUD_REF){
-    CLOUD_PENDING_SAVE = true;
-    return;
-  }
+  if(!CLOUD_READY || !CLOUD_DB) return;
   clearTimeout(CLOUD_SAVE_TIMER);
   const doSave = async ()=>{
     try{
       DB.updated = new Date().toISOString();
       const payload = JSON.parse(JSON.stringify(DB));
-      await CLOUD_REF.set({
+      await CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC).set({
         db: payload,
         updated: firebase.firestore.FieldValue.serverTimestamp(),
         updated_iso: DB.updated,
         client_hint: navigator.userAgent || 'browser'
       }, { merge: true });
       CLOUD_LAST_SAVE = DB.updated;
-      cloudStatusText('☁ Saved to Firebase');
+      cloudStatusText('☁ Saved to cloud');
     }catch(err){
-      showCloudError(err);
+      console.error('Cloud save failed:', err);
+      cloudStatusText('⚠ Cloud save failed — local backup kept');
+      toast('Cloud save failed. Data is still saved locally.');
     }
   };
-  CLOUD_SAVE_TIMER = setTimeout(doSave, immediate ? 0 : 250);
+  CLOUD_SAVE_TIMER = setTimeout(doSave, immediate ? 0 : 400);
 }
 
 /* -------- Snapshots (versioned saves) -------- */
@@ -2551,7 +2529,7 @@ function importData(file){
 function printQuote(id){
   const q = DB.quotes.find(x=>x.id===id);
   if(!q) return;
-  const c = DB.company;
+  const c = DB.company || {};
   const sub = quoteSubtotal(q);
   const afterDisc = quoteAfterDiscount(q);
   const tax = quoteTax(q);
@@ -2563,110 +2541,120 @@ function printQuote(id){
     ? `<tr><td>IGST @ 18%</td><td>${fmtINR2(tax)}</td></tr>`
     : '';
 
+  const client = q.client_id ? (DB.clients||[]).find(x=>x.id===q.client_id) : null;
+  const printClientName = client ? client.name : (q.client||'');
+  const printProject = q.project_name || (client ? '' : q.client) || '';
+  const addrLines = client ? [client.address_l1, client.address_l2, [client.city, client.state, client.pincode].filter(Boolean).join(' - ')].filter(Boolean) : [];
+  const contactLine = client ? [client.contact_person, client.phone, client.email].filter(Boolean).join(' · ') : '';
+  const statusClass = q.status==='Lost' ? 'bad' : (q.status==='Won'||q.status==='Paid') ? '' : 'warn';
+  const termsText = (q.terms && q.terms.trim()) || (c.default_terms && c.default_terms.trim()) || BUILTIN_DEFAULT_TERMS;
+  const notesText = q.notes || 'Please review all quantities, specifications, and commercial terms before confirmation. Project execution will be scheduled after payment confirmation.';
+
   const html = `
     <div class="print-page">
-      <div class="print-header">
-        <div>
-          <div class="print-brand">${escapeHTML(c.name)}</div>
-          <div class="print-tag">${escapeHTML(c.tagline||'')}</div>
-          <div style="font-size:9pt;color:#666;margin-top:8px">
-            ${escapeHTML(c.address_l1||'')}, ${escapeHTML(c.address_l2||'')}<br>
-            GSTIN: ${escapeHTML(c.gstin||'')} · PAN: ${escapeHTML(c.pan||'')} · State: ${escapeHTML(c.state||'')} (${escapeHTML(c.state_code||'')})<br>
-            ${escapeHTML(c.email||'')} · ${escapeHTML(c.phone||'')}
+      <div class="print-inner">
+        <div class="print-card">
+          <div class="print-header">
+            <div>
+              <div class="print-brand">${escapeHTML(c.name||'TECH TOYS')}</div>
+              <div class="print-tag">${escapeHTML(c.tagline||'Sound | Light | LED Screens')}</div>
+              <div class="print-company">
+                ${escapeHTML(c.address_l1||'')}${c.address_l2?', '+escapeHTML(c.address_l2):''}<br>
+                GSTIN: ${escapeHTML(c.gstin||'')} · PAN: ${escapeHTML(c.pan||'')} · State: ${escapeHTML(c.state||'')} (${escapeHTML(c.state_code||'')})<br>
+                ${escapeHTML(c.email||'')} · ${escapeHTML(c.phone||'')}
+              </div>
+            </div>
+            <div class="print-meta">
+              <div class="title">Quotation</div>
+              <div class="pi">${escapeHTML(q.pi_no||'')}</div>
+              <div class="date">Date: <b>${fmtDate(q.date)}</b></div>
+            </div>
+          </div>
+
+          <div class="print-summary">
+            <div class="print-cust-box">
+              <div class="print-section-title">Quotation For</div>
+              <div class="name">${escapeHTML(printClientName)}</div>
+              ${addrLines.length ? `<div class="addr">${addrLines.map(escapeHTML).join('<br>')}</div>` : ''}
+              ${contactLine ? `<div class="addr" style="margin-top:3px">${escapeHTML(contactLine)}</div>` : ''}
+              ${client && client.gstin ? `<div class="addr" style="margin-top:3px"><b>GSTIN:</b> ${escapeHTML(client.gstin)}${client.pan?` &nbsp; <b>PAN:</b> ${escapeHTML(client.pan)}`:''}</div>` : ''}
+              ${printProject ? `<div class="addr" style="margin-top:6px"><b>Project:</b> ${escapeHTML(printProject)}</div>` : ''}
+            </div>
+            <div class="print-status-box">
+              <div class="print-section-title">Current Status</div>
+              <div class="print-status-pill ${statusClass}">${escapeHTML(q.status||'Draft')}</div>
+            </div>
+          </div>
+
+          <div class="print-table-wrap">
+            <table class="print-tbl">
+              <thead>
+                <tr>
+                  <th style="width:28px">#</th>
+                  <th>Item Description</th>
+                  <th style="width:70px">Code</th>
+                  <th style="width:48px">Origin</th>
+                  <th style="width:45px" class="num">UOM</th>
+                  <th style="width:48px" class="num">Qty</th>
+                  <th style="width:82px" class="num">Rate</th>
+                  <th style="width:92px" class="num">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${q.items.map((it,i)=>`
+                  <tr>
+                    <td>${i+1}</td>
+                    <td>
+                      <div class="item-make">${escapeHTML(it.make||'')}</div>
+                      <div class="item-desc">${escapeHTML(it.desc||'')}</div>
+                      ${it.code?`<div class="item-code">Code: ${escapeHTML(it.code)}</div>`:''}
+                    </td>
+                    <td style="font-size:7.8pt;color:#667085">${escapeHTML(it.code||'')}</td>
+                    <td>${escapeHTML(it.country||'')}</td>
+                    <td class="num">${escapeHTML(it.uom||'')}</td>
+                    <td class="num">${fmtNum(it.qty)}</td>
+                    <td class="num">${fmtINR2(it.price)}</td>
+                    <td class="num"><b>${fmtINR2((it.qty||0)*(it.price||0))}</b></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="print-money">
+            <div class="print-note-box"><b>Commercial Note</b><br>${escapeHTML(notesText)}</div>
+            <table class="print-totals">
+              <tr><td>Subtotal</td><td>${fmtINR2(sub)}</td></tr>
+              ${q.discount ? `<tr><td>Discount</td><td>− ${fmtINR2(q.discount)}</td></tr>` : ''}
+              ${q.discount ? `<tr><td>After Discount</td><td>${fmtINR2(afterDisc)}</td></tr>` : ''}
+              ${taxRows}
+              <tr class="grand"><td>Grand Total</td><td>${fmtINR2(total)}</td></tr>
+            </table>
+          </div>
+
+          <div class="print-foot">
+            <div class="print-foot-panel">
+              <div class="lbl">Bank Details</div>
+              <div>${escapeHTML(c.bank_name||'')} · ${escapeHTML(c.bank_branch||'')}</div>
+              <div>A/C Name: ${escapeHTML(c.bank_ac_name||'')}</div>
+              <div>A/C No: <b>${escapeHTML(c.bank_ac||'')}</b></div>
+              <div>IFSC: <b>${escapeHTML(c.bank_ifsc||'')}</b> · MICR: ${escapeHTML(c.bank_micr||'')}</div>
+            </div>
+            <div class="print-foot-panel">
+              <div class="lbl">Terms & Conditions</div>
+              <div class="print-terms-list">
+                ${termsText.split('\n').filter(x=>x.trim()).map(line=>`<div>${escapeHTML(line.replace(/^[-•·]\s*/,''))}</div>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="print-sign">
+            <div class="print-thanks">Thank you for your business.</div>
+            <div class="print-sign-box">For ${escapeHTML(c.name||'TECH TOYS')}<br><b>${escapeHTML(c.contact_person||'')}</b></div>
           </div>
         </div>
-        <div class="print-meta">
-          <div style="font-size:14pt;font-weight:700;color:#1a1a1a;margin-bottom:4px">QUOTATION</div>
-          <div class="pi">${escapeHTML(q.pi_no||'')}</div>
-          <div style="margin-top:6px">Date: <b>${fmtDate(q.date)}</b></div>
-        </div>
       </div>
-
-      ${(()=>{
-        const client = q.client_id ? (DB.clients||[]).find(x=>x.id===q.client_id) : null;
-        const printClientName = client ? client.name : (q.client||'');
-        const printProject = q.project_name || (client ? '' : q.client) || '';
-        const addrLines = client ? [client.address_l1, client.address_l2, [client.city, client.state, client.pincode].filter(Boolean).join(' - ')].filter(Boolean) : [];
-        const contactLine = client ? [client.contact_person, client.phone, client.email].filter(Boolean).join(' · ') : '';
-        return `
-      <div class="print-cust">
-        <div class="print-cust-block">
-          <div class="print-section-title">Quotation For</div>
-          <div class="name">${escapeHTML(printClientName)}</div>
-          ${addrLines.length ? `<div class="addr">${addrLines.map(escapeHTML).join('<br>')}</div>` : ''}
-          ${contactLine ? `<div class="addr" style="margin-top:3px">${escapeHTML(contactLine)}</div>` : ''}
-          ${client && client.gstin ? `<div class="addr" style="margin-top:3px"><b>GSTIN:</b> ${escapeHTML(client.gstin)}${client.pan?` &nbsp; <b>PAN:</b> ${escapeHTML(client.pan)}`:''}</div>` : ''}
-          ${printProject ? `<div class="addr" style="margin-top:6px"><b>Project:</b> ${escapeHTML(printProject)}</div>` : ''}
-          ${q.notes ? `<div class="addr" style="margin-top:6px;font-style:italic">${escapeHTML(q.notes)}</div>` : ''}
-        </div>
-        <div class="print-cust-block" style="text-align:right">
-          <div class="print-section-title">Status</div>
-          <div class="name" style="color:${q.status==='Won'||q.status==='Paid'?'#10b981':q.status==='Lost'?'#ef4444':'#ff7a2f'}">${q.status}</div>
-        </div>
-      </div>`;})()}
-
-      <table class="print-tbl">
-        <thead>
-          <tr>
-            <th style="width:30px">#</th>
-            <th>Item</th>
-            <th style="width:80px">Code</th>
-            <th style="width:60px">Origin</th>
-            <th style="width:50px" class="num">UOM</th>
-            <th style="width:60px" class="num">Qty</th>
-            <th style="width:90px" class="num">Unit Price</th>
-            <th style="width:100px" class="num">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${q.items.map((it,i)=>`
-            <tr>
-              <td>${i+1}</td>
-              <td>
-                <div class="item-make">${escapeHTML(it.make||'')}</div>
-                <div class="item-desc">${escapeHTML(it.desc||'')}</div>
-                ${it.code?`<div class="item-code">${escapeHTML(it.code)}</div>`:''}
-              </td>
-              <td style="font-size:8.5pt;color:#888">${escapeHTML(it.code||'')}</td>
-              <td>${escapeHTML(it.country||'')}</td>
-              <td class="num">${escapeHTML(it.uom||'')}</td>
-              <td class="num">${fmtNum(it.qty)}</td>
-              <td class="num">${fmtINR2(it.price)}</td>
-              <td class="num"><b>${fmtINR2((it.qty||0)*(it.price||0))}</b></td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-
-      <table class="print-totals">
-        <tr><td>Subtotal</td><td>${fmtINR2(sub)}</td></tr>
-        ${q.discount ? `<tr><td>Discount</td><td>− ${fmtINR2(q.discount)}</td></tr>` : ''}
-        ${q.discount ? `<tr><td>After discount</td><td>${fmtINR2(afterDisc)}</td></tr>` : ''}
-        ${taxRows}
-        <tr class="grand"><td>Grand Total</td><td>${fmtINR2(total)}</td></tr>
-      </table>
-
-      <div class="print-foot">
-        <div>
-          <div class="lbl">Bank Details</div>
-          <div>${escapeHTML(c.bank_name||'')} · ${escapeHTML(c.bank_branch||'')}</div>
-          <div>A/C Name: ${escapeHTML(c.bank_ac_name||'')}</div>
-          <div>A/C No: <b>${escapeHTML(c.bank_ac||'')}</b></div>
-          <div>IFSC: <b>${escapeHTML(c.bank_ifsc||'')}</b> · MICR: ${escapeHTML(c.bank_micr||'')}</div>
-        </div>
-        <div>
-          <div class="lbl">Terms</div>
-          ${(()=>{
-            const txt = (q.terms && q.terms.trim()) || (c.default_terms && c.default_terms.trim()) || BUILTIN_DEFAULT_TERMS;
-            return txt.split('\n').map(line=>`<div>${escapeHTML(line)}</div>`).join('');
-          })()}
-        </div>
-      </div>
-
-      <div class="print-sign">
-        <div class="print-thanks">Thank you for your business.</div>
-        <div class="print-sign-line">For ${escapeHTML(c.name)}<br><b>${escapeHTML(c.contact_person||'')}</b></div>
-      </div>
+      <div class="print-watermark">${escapeHTML(location.href)} · Generated ${new Date().toLocaleString()}</div>
     </div>
   `;
 
@@ -3165,14 +3153,14 @@ if(isLoggedIn()) showApp();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-05-04-firebase-final-v2';
+  const BUILD_VERSION = '2026-05-04-premium-print-v2';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
     if (!('caches' in window)) return;
     const keys = await caches.keys();
     await Promise.all(keys
-      .filter(k => k.startsWith('techtoys-quotation') && k !== 'techtoys-quotation-auto-v3')
+      .filter(k => k.startsWith('techtoys-quotation') && k !== 'techtoys-quotation-auto-v2')
       .map(k => caches.delete(k))
     );
   }
