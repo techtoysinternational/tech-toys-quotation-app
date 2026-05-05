@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Tech Toys CRM Pro</title>
+<title>Tech Toys CRM Pro — Migration Ready</title>
 <style>
 :root{--bg:#0b0f17;--panel:#151b27;--panel2:#1d2533;--text:#eef2f7;--muted:#98a2b3;--line:#2c3446;--accent:#ff7a2f;--accent2:#ffb071;--green:#2dd4bf;--red:#ef4444;--blue:#60a5fa;--amber:#fbbf24}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer}
@@ -24,7 +24,7 @@ table{width:100%;border-collapse:collapse;background:var(--panel);border-radius:
 <div class="modal" id="modal"><div class="box" id="modalBox"></div></div><div id="printArea"></div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const firebaseConfig={apiKey:"AIzaSyAEbNB_tCs4BV4EyBHAscJe7w9TG7PTuMM",authDomain:"tech-toys-quotation.firebaseapp.com",projectId:"tech-toys-quotation",storageBucket:"tech-toys-quotation.firebasestorage.app",messagingSenderId:"609352082860",appId:"1:609352082860:web:ec339fbea8bebcb110c609"};
 const app=initializeApp(firebaseConfig),db=getFirestore(app),$=id=>document.getElementById(id),money=n=>"₹"+(Number(n||0)).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
 let state={leads:[],clients:[],quotes:[],products:[],settings:null},current="dashboard";
@@ -37,7 +37,7 @@ function dashboard(){const quoted=state.quotes.reduce((s,q)=>s+Number(q.grandTot
 function leads(){$("view").innerHTML=`<div class="head"><div><div class="title">Leads</div><div class="small">Create lead and convert it into a client</div></div><button class="btn primary" onclick="openLead()">+ Add Lead</button></div>${leadTable(state.leads)}`}
 function clients(){$("view").innerHTML=`<div class="head"><div><div class="title">Clients</div><div class="small">Customer database</div></div><button class="btn primary" onclick="openClient()">+ Add Client</button></div>${clientTable(state.clients)}`}
 function quotes(){$("view").innerHTML=`<div class="head"><div><div class="title">Quotations</div><div class="small">Default GST is CGST 9% + SGST 9%; IGST is optional.</div></div><button class="btn primary" onclick="openQuote()">+ New Quote</button></div>${quoteTable(state.quotes.slice().reverse())}`}
-function settings(){const s=state.settings||defaultSettings;$("view").innerHTML=`<div class="head"><div><div class="title">Settings</div><div class="small">Company details used on quotations</div></div></div><div class="card"><div class="form">${inp("company","Company",s.company)}${inp("tagline","Tagline",s.tagline)}${inp("address","Address",s.address,"full")}${inp("gstin","GSTIN",s.gstin)}${inp("pan","PAN",s.pan)}${inp("email","Email",s.email)}${inp("phone","Phone",s.phone)}${inp("bank","Bank",s.bank,"full")}${inp("acName","A/C Name",s.acName)}${inp("acNo","A/C No.",s.acNo)}${inp("ifsc","IFSC",s.ifsc)}${inp("micr","MICR",s.micr)}<div class="full"><label>Terms</label><textarea id="set_terms" rows="5">${esc(s.terms||"")}</textarea></div></div><div style="margin-top:15px"><button class="btn primary" onclick="saveSettings()">Save Settings</button></div></div>`}
+function settings(){const s=state.settings||defaultSettings;$("view").innerHTML=`<div class="head"><div><div class="title">Settings</div><div class="small">Company details used on quotations</div></div></div><div class="card"><div class="form">${inp("company","Company",s.company)}${inp("tagline","Tagline",s.tagline)}${inp("address","Address",s.address,"full")}${inp("gstin","GSTIN",s.gstin)}${inp("pan","PAN",s.pan)}${inp("email","Email",s.email)}${inp("phone","Phone",s.phone)}${inp("bank","Bank",s.bank,"full")}${inp("acName","A/C Name",s.acName)}${inp("acNo","A/C No.",s.acNo)}${inp("ifsc","IFSC",s.ifsc)}${inp("micr","MICR",s.micr)}<div class="full"><label>Terms</label><textarea id="set_terms" rows="5">${esc(s.terms||"")}</textarea></div></div><div style="margin-top:15px"><button class="btn primary" onclick="saveSettings()">Save Settings</button></div></div><div class="card"><div class="head"><div><b>Old Data Migration</b><div class="small">Imports your old Tech Toys data from <code>techtoys/appState</code> into the new Leads / Clients / Quotations structure. Safe to click once; it uses old IDs so it will not duplicate if clicked again.</div></div></div><button class="btn good" onclick="importOldData()">Import Old Data</button><div class="small" id="migrationStatus" style="margin-top:10px">Use this only after replacing the file on GitHub.</div></div>`}
 function inp(id,label,val,cls=""){return`<div class="${cls}"><label>${label}</label><input id="set_${id}" value="${esc(val||"")}"></div>`}
 function leadTable(rows){if(!rows.length)return`<div class="card small">No leads yet.</div>`;return`<table><thead><tr><th>Name</th><th>Phone</th><th>Source</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.map(l=>`<tr><td><b>${esc(l.name)}</b><br><span class="small">${esc(l.email||"")}</span></td><td>${esc(l.phone||"")}</td><td>${esc(l.source||"")}</td><td><span class="pill ${l.status==="Converted"?"converted":""}">${esc(l.status||"New")}</span></td><td class="row"><button class="btn sm good" onclick="convertLead('${l.id}')">Convert</button><button class="btn sm danger" onclick="del('leads','${l.id}')">Delete</button></td></tr>`).join("")}</tbody></table>`}
 function clientTable(rows){if(!rows.length)return`<div class="card small">No clients yet.</div>`;return`<table><thead><tr><th>Client</th><th>Phone</th><th>GSTIN</th><th>Address</th><th>Action</th></tr></thead><tbody>${rows.map(c=>`<tr><td><b>${esc(c.name)}</b><br><span class="small">${esc(c.email||"")}</span></td><td>${esc(c.phone||"")}</td><td>${esc(c.gstin||"")}</td><td>${esc(c.address||"")}</td><td><button class="btn sm primary" onclick="openQuote('${c.id}')">Quote</button></td></tr>`).join("")}</tbody></table>`}
@@ -53,6 +53,88 @@ window.addItemRow=()=>{const tr=document.createElement("tr");tr.innerHTML=`<td><
 window.saveQuote=async()=>{const items=[...document.querySelectorAll("#itemRows tr")].map(tr=>({name:tr.querySelector(".it_name").value,desc:tr.querySelector(".it_desc").value,qty:Number(tr.querySelector(".it_qty").value||0),uom:tr.querySelector(".it_uom").value,rate:Number(tr.querySelector(".it_rate").value||0)})).filter(i=>i.name||i.desc);const sub=items.reduce((s,i)=>s+i.qty*i.rate,0),gstType=v("q_gst"),cgst=gstType==="CGST_SGST"?sub*.09:0,sgst=gstType==="CGST_SGST"?sub*.09:0,igst=gstType==="IGST"?sub*.18:0;await addDoc(collection(db,"quotes"),{no:v("q_no"),date:v("q_date"),clientId:v("q_client"),clientName:clientName(v("q_client")),project:v("q_project"),status:v("q_status"),gstType,items,subtotal:sub,cgst,sgst,igst,grandTotal:sub+cgst+sgst+igst,createdAt:serverTimestamp()});closeModal()};
 window.printQuote=id=>{const q=state.quotes.find(x=>x.id===id),c=state.clients.find(x=>x.id===q.clientId)||{},s=state.settings||defaultSettings;const rows=q.items.map((it,i)=>`<tr><td>${i+1}</td><td><b>${esc(it.name)}</b><br><span style="color:#666">${esc(it.desc||"")}</span></td><td>${esc(it.uom||"")}</td><td style="text-align:right">${it.qty}</td><td style="text-align:right">${money(it.rate)}</td><td style="text-align:right">${money(it.qty*it.rate)}</td></tr>`).join("");const taxes=q.gstType==="CGST_SGST"?`<tr><td>CGST @ 9%</td><td class="right">${money(q.cgst)}</td></tr><tr><td>SGST @ 9%</td><td class="right">${money(q.sgst)}</td></tr>`:q.gstType==="IGST"?`<tr><td>IGST @ 18%</td><td class="right">${money(q.igst)}</td></tr>`:"";$("printArea").innerHTML=`<div class="printPage"><div class="pTop"><div><div class="pBrand">${esc(s.company)}</div><div class="pTag">${esc(s.tagline)}</div><div style="font-size:11px;margin-top:8px">${esc(s.address)}<br>GSTIN: ${esc(s.gstin)} · PAN: ${esc(s.pan)}<br>${esc(s.email)} · ${esc(s.phone)}</div></div><div class="pMeta"><h1>QUOTATION</h1><div><b>${esc(q.no)}</b></div><div>Date: ${esc(q.date)}</div><div>Status: ${esc(q.status)}</div></div></div><div class="pSec"><div><div class="pLabel">Quotation For</div><div class="pName">${esc(c.name||q.clientName||"")}</div><div>${esc(c.address||"")}<br>${esc(c.phone||"")} ${c.email?"· "+esc(c.email):""}<br>${c.gstin?"GSTIN: "+esc(c.gstin):""}</div></div><div><div class="pLabel">Project</div><div class="pName">${esc(q.project||"")}</div><div>${q.gstType==="IGST"?"IGST @ 18%":q.gstType==="NONE"?"No GST":"CGST @ 9% + SGST @ 9%"}</div></div></div><table class="pTable"><thead><tr><th>#</th><th>Item</th><th>UOM</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table><table class="pTotals"><tr><td>Subtotal</td><td class="right">${money(q.subtotal)}</td></tr>${taxes}<tr class="gt"><td>Grand Total</td><td class="right">${money(q.grandTotal)}</td></tr></table><div class="pFoot"><div><b>Bank Details</b><br>${esc(s.bank)}<br>A/C Name: ${esc(s.acName)}<br>A/C No: ${esc(s.acNo)}<br>IFSC: ${esc(s.ifsc)} · MICR: ${esc(s.micr)}</div><div><b>Terms</b><br>${esc(s.terms).replaceAll("\n","<br>")}</div></div><div class="sign">For ${esc(s.company)}<br><br><b>Kunal Singh</b></div></div>`;setTimeout(()=>window.print(),100)};
 window.saveSettings=async()=>{const data={};["company","tagline","address","gstin","pan","email","phone","bank","acName","acNo","ifsc","micr","terms"].forEach(k=>data[k]=v("set_"+k));await setDoc(doc(db,"settings","main"),data,{merge:true})};
+
+async function importOldData(){
+  const statusEl=document.getElementById("migrationStatus");
+  const log=t=>{if(statusEl)statusEl.textContent=t; $("sync").textContent=t;};
+  try{
+    if(!confirm("Import old saved data from techtoys/appState into the new CRM structure? This is safe and will not duplicate records with the same old IDs.")) return;
+    log("Reading old data from Firebase...");
+    const snap=await getDoc(doc(db,"techtoys","appState"));
+    if(!snap.exists()){log("No old data found at techtoys/appState.");alert("No old data found at techtoys/appState.");return;}
+    const raw=snap.data()||{};
+    const legacy=raw.db || raw.appState || raw;
+    const arr=x=>Array.isArray(x)?x:(x&&typeof x==="object"?Object.values(x):[]);
+    const safeId=(v,p)=>String(v||p||("id"+Date.now()+Math.random())).replace(/[\/#[\]?]/g,"_");
+    const clientMap=new Map();
+    const oldClients=arr(legacy.clients);
+    const oldQuotes=[...arr(legacy.quotes), ...arr(legacy.quotations), ...arr(legacy.projects).filter(p=>p&&typeof p==="object"&&(p.items||p.pi_no||p.client||p.project_name))];
+    const oldLeads=arr(legacy.leads);
+    const oldProducts=arr(legacy.products);
+    let clientCount=0, quoteCount=0, leadCount=0, productCount=0;
+    for(const c of oldClients){
+      const id=safeId(c.id,"C"+String(++clientCount).padStart(4,"0"));
+      clientMap.set(String((c.name||"").toLowerCase()), id);
+      await setDoc(doc(db,"clients",id),{
+        name:c.name||c.client||c.company||"Unnamed Client",
+        phone:c.phone||"", email:c.email||"", gstin:c.gstin||"", pan:c.pan||"",
+        address:[c.address_l1,c.address_l2,c.city,c.state,c.pincode].filter(Boolean).join(", ") || c.address || "",
+        contact_person:c.contact_person||"", notes:c.notes||"", projects:c.projects||[], legacyId:c.id||id, migratedAt:new Date().toISOString()
+      },{merge:true});
+    }
+    for(const l of oldLeads){
+      const id=safeId(l.id,"L"+String(++leadCount).padStart(4,"0"));
+      await setDoc(doc(db,"leads",id),{
+        name:l.name||l.client||l.company||l.project||"Unnamed Lead",
+        phone:l.phone||"", email:l.email||"", source:l.source||"", notes:l.notes||"", status:l.status||"New",
+        value:Number(l.value||l.est_value||0), nextFollowUp:l.next_followup||l.nextFollowUp||"", legacyId:l.id||id, migratedAt:new Date().toISOString()
+      },{merge:true});
+    }
+    const ensureClient=async(name)=>{
+      const key=String(name||"").toLowerCase();
+      if(clientMap.has(key))return clientMap.get(key);
+      const id="C_AUTO_"+safeId(name||"Client");
+      clientMap.set(key,id);
+      await setDoc(doc(db,"clients",id),{name:name||"Unnamed Client",phone:"",email:"",address:"",gstin:"",legacyId:id,migratedAt:new Date().toISOString()},{merge:true});
+      return id;
+    };
+    for(const q of oldQuotes){
+      const id=safeId(q.id||q.pi_no,"Q"+String(++quoteCount).padStart(4,"0"));
+      const clientId=q.client_id||await ensureClient(q.client||q.clientName||q.name||"");
+      const items=arr(q.items).map(it=>({
+        name:it.make||it.name||it.item||"", desc:it.desc||it.description||"", code:it.code||"", country:it.country||"",
+        qty:Number(it.qty||0), uom:it.uom||"Nos.", rate:Number(it.price||it.rate||it.unit_price||0)
+      }));
+      const subtotal=items.reduce((sum,it)=>sum+(Number(it.qty)||0)*(Number(it.rate)||0),0);
+      const discount=Number(q.discount||0);
+      const taxable=Math.max(0,subtotal-discount);
+      let gstType="CGST_SGST";
+      if(String(q.tax_type||q.gstType||"").toUpperCase().includes("IGST")) gstType="IGST";
+      if(String(q.tax_type||q.gstType||"").toUpperCase().includes("NONE")||Number(q.tax_pct)===0) gstType="NONE";
+      const cgst=gstType==="CGST_SGST"?taxable*0.09:0, sgst=gstType==="CGST_SGST"?taxable*0.09:0, igst=gstType==="IGST"?taxable*0.18:0;
+      await setDoc(doc(db,"quotes",id),{
+        no:q.pi_no||q.no||q.quote_no||id, date:q.date||new Date().toISOString().slice(0,10), clientId, clientName:q.client||q.clientName||"",
+        project:q.project_name||q.project||"", status:q.status||"Draft", gstType, items, subtotal, discount, cgst, sgst, igst,
+        grandTotal:Number(q.grandTotal||q.grand_total||q.total||q.amount||taxable+cgst+sgst+igst), amountPaid:Number(q.amount_paid||q.amountPaid||0), notes:q.notes||"", legacyId:q.id||id, migratedAt:new Date().toISOString()
+      },{merge:true});
+    }
+    for(const p of oldProducts){
+      const id=safeId(p.id||p.code||p.make,"P"+String(++productCount).padStart(4,"0"));
+      await setDoc(doc(db,"products",id),{...p,legacyId:p.id||id,migratedAt:new Date().toISOString()},{merge:true});
+    }
+    if(legacy.company){
+      const c=legacy.company;
+      await setDoc(doc(db,"settings","main"),{
+        company:c.name||"TECH TOYS", tagline:c.tagline||"Sound | Light | LED Screens", address:[c.address_l1,c.address_l2].filter(Boolean).join(", ")||c.address||"",
+        gstin:c.gstin||"", pan:c.pan||"", email:c.email||"", phone:c.phone||"", bank:[c.bank_name,c.bank_branch].filter(Boolean).join(" · "), acName:c.bank_ac_name||"", acNo:c.bank_ac||"", ifsc:c.bank_ifsc||"", micr:c.bank_micr||"", terms:c.default_terms||defaultSettings.terms
+      },{merge:true});
+    }
+    log(`Migration complete: ${oldClients.length} clients, ${oldLeads.length} leads, ${oldQuotes.length} quotations, ${oldProducts.length} products imported.`);
+    alert("Migration complete. Open Dashboard / Clients / Quotations now.");
+  }catch(err){console.error(err);log("Migration failed: "+err.message);alert("Migration failed: "+err.message);}
+}
+window.importOldData=importOldData;
+
 window.del=async(col,id)=>{if(confirm("Delete this record?"))await deleteDoc(doc(db,col,id))};function modal(title,body,foot){$("modalBox").innerHTML=`<div class="boxh"><b>${title}</b><button class="btn sm" onclick="closeModal()">×</button></div><div class="boxb">${body}</div><div class="boxf">${foot}</div>`;$("modal").classList.add("show")}window.closeModal=()=>$("modal").classList.remove("show");function field(id,label){return`<div><label>${label}</label><input id="${id}"></div>`}function area(id,label){return`<label>${label}</label><textarea id="${id}" rows="3"></textarea>`}function v(id){return($(id)||{}).value||""}function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}render();
 </script>
 </body>
