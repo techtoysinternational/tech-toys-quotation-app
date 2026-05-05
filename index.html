@@ -1532,7 +1532,7 @@ function renderNewQuote(id){
       client: '',
       date: today(),
       items: [],
-      tax_type: 'IGST',
+      tax_type: 'SGST_CGST',
       tax_pct: 18,
       discount: 0,
       status: 'Draft',
@@ -1565,7 +1565,7 @@ function renderNewQuote(id){
       <div class="card-head">
         <div class="card-title">Quote details</div>
         <div class="row" style="gap:6px">
-          <button class="btn btn-sm" onclick="editClient()">+ Add new client</button>
+          <button class="btn btn-sm btn-primary" onclick="addClientFromQuote()">+ Add new client</button>
         </div>
       </div>
       <div class="form-grid">
@@ -1622,8 +1622,8 @@ function renderNewQuote(id){
       <div class="form-grid">
         <div class="field"><label>Tax Type</label>
           <select id="eq_tax_type" onchange="updateTaxType()">
+            <option value="SGST_CGST" ${q.tax_type==='SGST_CGST'?'selected':''}>SGST 9% + CGST 9% (West Bengal — default)</option>
             <option value="IGST" ${q.tax_type==='IGST'?'selected':''}>IGST 18% (interstate)</option>
-            <option value="SGST_CGST" ${q.tax_type==='SGST_CGST'?'selected':''}>SGST 9% + CGST 9% (West Bengal)</option>
             <option value="NONE" ${q.tax_type==='NONE'?'selected':''}>No tax</option>
           </select>
         </div>
@@ -1671,23 +1671,58 @@ function onClientInput(e){
   const matches = DB.clients.filter(c => (c.name+' '+(c.contact_person||'')+' '+(c.gstin||'')+' '+(c.city||'')).toLowerCase().includes(txt)).slice(0, 10);
   showClientAC(matches);
 }
+// Open the Add Client modal pre-filled with whatever the user has typed in the
+// quote's client field. Called from the prominent "+ Add new client" button on
+// the New Quote screen.
+function addClientFromQuote(){
+  const inp = document.getElementById('eq_client');
+  const typed = inp ? inp.value.trim() : '';
+  hideClientAC();
+  editClient();
+  setTimeout(()=>{
+    const nm = document.getElementById('ec_name');
+    if(nm && typed) nm.value = typed;
+    const cp = document.getElementById('ec_cp'); if(cp) cp.focus();
+  }, 50);
+}
+
 function showClientAC(items){
   const list = document.getElementById('clientAcList');
   if(!list) return;
+  const inp = document.getElementById('eq_client');
+  const typed = inp ? inp.value.trim() : '';
+  // Build a "create new" footer row that pre-fills the typed name
+  const createRow = typed
+    ? `<div class="ac-item" data-action="create-new" style="background:var(--accent-dim);color:var(--accent2);font-weight:600;border-top:1px solid var(--border)">
+         + Create new client &ldquo;${escapeHTML(typed)}&rdquo;
+         <div class="ac-desc" style="color:var(--muted);font-weight:400">Open the full client form pre-filled with this name</div>
+       </div>`
+    : `<div class="ac-item" data-action="create-new" style="color:var(--accent2);font-weight:600">+ Add a new client</div>`;
   if(items.length === 0){
-    list.innerHTML = `<div class="ac-item" style="color:var(--muted)">No clients match. <a href="#" onclick="event.preventDefault();editClient()" style="margin-left:6px">+ Create new</a></div>`;
-    list.classList.add('show');
-    list._sel = -1;
-    return;
+    list.innerHTML = `<div class="ac-item" style="color:var(--muted);font-style:italic">No matching clients</div>` + createRow;
+  } else {
+    list.innerHTML = items.map((c,j)=>`
+      <div class="ac-item" data-cid="${c.id}" data-j="${j}">
+        <div><span class="ac-make">${escapeHTML(c.name)}</span> ${c.gstin?`<span class="ac-meta">GST: ${escapeHTML(c.gstin)}</span>`:''}</div>
+        <div class="ac-desc">${[c.contact_person,c.phone,c.city].filter(Boolean).map(escapeHTML).join(' · ')}</div>
+      </div>
+    `).join('') + createRow;
   }
-  list.innerHTML = items.map((c,j)=>`
-    <div class="ac-item" data-cid="${c.id}" data-j="${j}">
-      <div><span class="ac-make">${escapeHTML(c.name)}</span> ${c.gstin?`<span class="ac-meta">GST: ${escapeHTML(c.gstin)}</span>`:''}</div>
-      <div class="ac-desc">${[c.contact_person,c.phone,c.city].filter(Boolean).map(escapeHTML).join(' · ')}</div>
-    </div>
-  `).join('');
   list.querySelectorAll('.ac-item[data-cid]').forEach(el=>{
     el.addEventListener('mousedown', e=>{ e.preventDefault(); pickClient(el.dataset.cid); });
+  });
+  list.querySelectorAll('.ac-item[data-action="create-new"]').forEach(el=>{
+    el.addEventListener('mousedown', e=>{
+      e.preventDefault();
+      hideClientAC();
+      // Open the editClient modal pre-filled with whatever they typed
+      editClient();
+      setTimeout(()=>{
+        const nm = document.getElementById('ec_name');
+        if(nm && typed) nm.value = typed;
+        const cp = document.getElementById('ec_cp'); if(cp) cp.focus();
+      }, 50);
+    });
   });
   list._sel = -1;
   list.classList.add('show');
@@ -2304,11 +2339,27 @@ function saveClient(id){
   }
   saveDB();
   closeModal();
-  toast('Client saved');
+  toast(id ? 'Client saved' : 'Client added');
   if(CURRENT_VIEW==='clients') renderClients();
   else if(CURRENT_VIEW==='client') renderClientDetail(id||data.id);
   else if(CURRENT_VIEW==='new-quote' || CURRENT_VIEW==='edit-quote') {
-    // refresh autocomplete
+    // If we just CREATED a new client (not edited), auto-link it to the quote in progress
+    if(!id && editingQuote){
+      const newClient = DB.clients.find(c=>c.id===data.id);
+      if(newClient){
+        editingQuote.client = newClient.name;
+        editingQuote.client_id = newClient.id;
+        // Reflect in the form: input value, link line, and project datalist
+        const inp = document.getElementById('eq_client');
+        if(inp) inp.value = newClient.name;
+        const link = document.getElementById('eq_client_link');
+        if(link) link.innerHTML = `Linked to <b>${escapeHTML(newClient.name)}</b>${newClient.gstin?` · GSTIN ${escapeHTML(newClient.gstin)}`:''} · <a href="#" onclick="event.preventDefault();unlinkClient()">Unlink</a>`;
+        const dl = document.getElementById('eq_proj_list');
+        if(dl) dl.innerHTML = (newClient.projects||[]).map(p=>`<option value="${escapeHTML(p)}">`).join('');
+        hideClientAC();
+        toast('New client linked to this quote');
+      }
+    }
   }
 }
 
@@ -3068,7 +3119,7 @@ function convertLeadToQuote(id){
     project_name: lead.project_name || '',
     date: today(),
     items: [],
-    tax_type: 'IGST',
+    tax_type: 'SGST_CGST',
     tax_pct: 18,
     discount: 0,
     status: 'Draft',
