@@ -359,6 +359,11 @@ function loadDB(){
         DB.leads = [];
         _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
       }
+      // Ensure rentals array exists
+      if(!Array.isArray(DB.rentals)){
+        DB.rentals = [];
+        _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
+      }
       // Ensure company-wide default Terms & Conditions exist (used by Settings + print template)
       if(!DB.company) DB.company = {};
       if(!DB.company.default_terms){
@@ -788,6 +793,7 @@ const NAV = [
   {id:'leads', label:'Leads', ico:'🎯'},
   {id:'quotes', label:'Quotations', ico:'📋'},
   {id:'new-quote', label:'New Quote', ico:'➕'},
+  {id:'rentals', label:'Rentals', ico:'🎪'},
   {id:'clients', label:'Clients', ico:'👥'},
   {id:'products', label:'Products', ico:'📦'},
   {id:'settings', label:'Settings', ico:'⚙️'},
@@ -812,6 +818,8 @@ function navigate(view, params){
   else if(view==='new-quote') renderNewQuote();
   else if(view==='edit-quote') renderNewQuote(params);
   else if(view==='leads') renderLeads();
+  else if(view==='rentals') renderRentals();
+  else if(view==='rental') renderRentalDetail(params);
   else if(view==='products') renderProducts();
   else if(view==='clients') renderClients();
   else if(view==='client') renderClientDetail(params);
@@ -3137,6 +3145,288 @@ function convertLeadToQuote(id){
   closeModal();
   toast(`Lead converted to ${newQuote.pi_no} (Draft)`);
   navigate('edit-quote', newQuote.id);
+}
+
+/* ============================================================
+   RENTALS — event-based rental jobs (separate from sales quotes)
+   ============================================================ */
+const RENTAL_STATUSES = ['Upcoming','Done','Cancelled'];
+
+function ensureRentals(){ if(!Array.isArray(DB.rentals)) DB.rentals = []; }
+function nextRentalId(){
+  let n = 1;
+  while((DB.rentals||[]).find(r=>r.id===`R${String(n).padStart(4,'0')}`)) n++;
+  return `R${String(n).padStart(4,'0')}`;
+}
+function rentalItemsSubtotal(r){
+  return (r.items||[]).reduce((s,it)=>s + (+it.qty||0)*(+it.rate||0), 0);
+}
+function rentalTotal(r){
+  // If items exist, prefer their subtotal; otherwise use the manual total_amount.
+  if((r.items||[]).length > 0) return rentalItemsSubtotal(r);
+  return +r.total_amount || 0;
+}
+function rentalPending(r){
+  if(r.status === 'Cancelled') return 0;
+  return Math.max(0, rentalTotal(r) - (+r.advance||0));
+}
+function rentalFY(r){
+  if(!r || !r.event_date) return null;
+  const d = new Date(r.event_date);
+  if(isNaN(d)) return null;
+  const y = d.getFullYear(), m = d.getMonth();
+  const fyStart = m >= 3 ? y : y - 1;
+  return `FY ${fyStart}-${String(fyStart+1).slice(-2)}`;
+}
+function filterRentalsByFY(rentals){
+  if(CURRENT_FY === 'all') return rentals;
+  const target = activeFY();
+  return rentals.filter(r => rentalFY(r) === target);
+}
+
+let rentalsFilter = {q:'', status:''};
+
+function renderRentals(){
+  ensureRentals();
+  let rs = filterRentalsByFY([...DB.rentals]);
+  const totalInFY = rs.length;
+  if(rentalsFilter.q){
+    const t = rentalsFilter.q.toLowerCase();
+    rs = rs.filter(r => ((r.event_manager||'')+' '+(r.venue||'')+' '+(r.reference||'')+' '+(r.notes||'')).toLowerCase().includes(t));
+  }
+  if(rentalsFilter.status) rs = rs.filter(r => r.status === rentalsFilter.status);
+  // Sort by event date desc (most recent first)
+  rs.sort((a,b)=>(b.event_date||'').localeCompare(a.event_date||''));
+
+  const totalVal = rs.reduce((s,r)=>s+rentalTotal(r), 0);
+  const totalPending = rs.reduce((s,r)=>s+rentalPending(r), 0);
+
+  document.getElementById('mainView').innerHTML = `
+    <div class="page-head">
+      <div>
+        <button class="btn btn-icon mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+        <div style="display:inline-block;vertical-align:middle">
+          <div class="page-title">Rentals <span class="fy-badge">${escapeHTML(fyLabel())}</span></div>
+          <div class="page-sub">${rs.length} of ${totalInFY} ${CURRENT_FY==='all'?'(all time)':'in '+escapeHTML(activeFY())} · ${fmtINR(totalVal)} total · ${fmtINR(totalPending)} pending</div>
+        </div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="createNewRental()">➕ New Rental</button>
+      </div>
+    </div>
+
+    <div class="search-row">
+      <input id="rSearch" placeholder="Search event manager, venue, reference, notes..." value="${escapeHTML(rentalsFilter.q)}">
+      <select id="rStatus">
+        <option value="">All statuses</option>
+        ${RENTAL_STATUSES.map(s=>`<option value="${s}" ${rentalsFilter.status===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="card" style="padding:0">
+      <table class="tbl tbl-clickable">
+        <thead><tr><th>Event Date</th><th>Event Manager</th><th>Venue</th><th>Reference</th><th>Items</th><th>Status</th><th class="num">Total</th><th class="num">Advance</th><th class="num">Pending</th></tr></thead>
+        <tbody>
+          ${rs.length===0 ? '<tr><td colspan="9" class="empty">No rentals match. Click <b>+ New Rental</b> to add one.</td></tr>' :
+            rs.map(r=>{
+              const total = rentalTotal(r);
+              const adv = +r.advance||0;
+              const pending = rentalPending(r);
+              return `<tr onclick="navigate('rental','${r.id}')">
+                <td><b>${fmtDate(r.event_date)}</b></td>
+                <td>${escapeHTML(r.event_manager||'—')}</td>
+                <td class="muted">${escapeHTML(r.venue||'—')}</td>
+                <td class="muted">${escapeHTML(r.reference||'—')}</td>
+                <td class="muted">${(r.items||[]).length}</td>
+                <td><span class="pill ${r.status==='Upcoming'?'pill-sent':r.status==='Done'?'pill-paid':'pill-lost'}">${r.status||'Upcoming'}</span></td>
+                <td class="num"><b>${fmtINR(total)}</b></td>
+                <td class="num" style="color:${adv>0?'var(--green)':'var(--muted)'}">${fmtINR(adv)}</td>
+                <td class="num" style="color:${pending>0?'var(--amber)':'var(--muted)'}">${fmtINR(pending)}</td>
+              </tr>`;
+            }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  document.getElementById('rSearch').oninput = e=>{ rentalsFilter.q = e.target.value; renderRentals(); };
+  document.getElementById('rStatus').onchange = e=>{ rentalsFilter.status = e.target.value; renderRentals(); };
+}
+
+function createNewRental(){
+  ensureRentals();
+  const r = {
+    id: nextRentalId(),
+    event_date: today(),
+    event_manager: '',
+    venue: '',
+    reference: '',
+    items: [],
+    total_amount: 0,
+    advance: 0,
+    notes: '',
+    status: 'Upcoming',
+    created: new Date().toISOString(),
+    updated: new Date().toISOString(),
+  };
+  DB.rentals.push(r);
+  saveDB();
+  navigate('rental', r.id);
+}
+
+function renderRentalDetail(id){
+  ensureRentals();
+  const r = DB.rentals.find(x=>x.id===id);
+  if(!r){
+    document.getElementById('mainView').innerHTML = '<div class="empty">Rental not found.</div>';
+    return;
+  }
+  const total = rentalTotal(r);
+  const pending = rentalPending(r);
+
+  document.getElementById('mainView').innerHTML = `
+    <div class="page-head">
+      <div>
+        <button class="btn btn-icon mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+        <div style="display:inline-block;vertical-align:middle">
+          <div class="page-title">${r.event_manager?escapeHTML(r.event_manager):'(no event manager)'} <span class="tag" style="font-size:11px;font-weight:600">${escapeHTML(r.id)}</span></div>
+          <div class="page-sub">${escapeHTML(r.venue||'(no venue)')} · ${fmtDate(r.event_date)} · ${(r.items||[]).length} item(s)</div>
+        </div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="navigate('rentals')">← Back</button>
+        <button class="btn btn-danger" onclick="deleteRental('${r.id}')">🗑 Delete</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Event details</div></div>
+      <div class="form-grid">
+        <div class="field"><label>Date of Event *</label><input id="rd_date" type="date" value="${escapeHTML(r.event_date||'')}" onchange="updateRentalField('${r.id}','event_date',this.value)"></div>
+        <div class="field"><label>Status</label>
+          <select id="rd_status" onchange="updateRentalField('${r.id}','status',this.value)">
+            ${RENTAL_STATUSES.map(s=>`<option value="${s}" ${r.status===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Event Manager Name *</label><input id="rd_mgr" value="${escapeHTML(r.event_manager||'')}" placeholder="e.g. Rajesh Kumar" onchange="updateRentalField('${r.id}','event_manager',this.value)"></div>
+        <div class="field"><label>Reference</label><input id="rd_ref" value="${escapeHTML(r.reference||'')}" placeholder="Booking ref / PO / contact #" onchange="updateRentalField('${r.id}','reference',this.value)"></div>
+        <div class="field full"><label>Venue</label><input id="rd_venue" value="${escapeHTML(r.venue||'')}" placeholder="e.g. Hyatt Regency, Kolkata" onchange="updateRentalField('${r.id}','venue',this.value)"></div>
+        <div class="field full"><label>Notes</label><textarea id="rd_notes" rows="2" placeholder="Setup time, special requirements, contact details..." onchange="updateRentalField('${r.id}','notes',this.value)">${escapeHTML(r.notes||'')}</textarea></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Items</div>
+        <button class="btn btn-sm btn-primary" onclick="addRentalLineItem('${r.id}')">+ Add row</button>
+      </div>
+      <table class="li-tbl">
+        <thead>
+          <tr>
+            <th style="width:24px"></th>
+            <th style="width:240px">Make / Brand</th>
+            <th>Description</th>
+            <th style="width:80px" class="num">Qty</th>
+            <th style="width:120px" class="num">Rate (₹)</th>
+            <th style="width:130px" class="num">Amount</th>
+            <th style="width:30px"></th>
+          </tr>
+        </thead>
+        <tbody id="rentalItemsBody">
+          ${(r.items||[]).map((it,i)=>`
+            <tr>
+              <td class="muted" style="text-align:center;padding:11px 4px">${i+1}</td>
+              <td><input data-field="make" data-idx="${i}" value="${escapeHTML(it.make||'')}" placeholder="Item make/brand"></td>
+              <td><input data-field="desc" data-idx="${i}" value="${escapeHTML(it.desc||'')}" placeholder="Description / specs"></td>
+              <td class="num"><input data-field="qty" data-idx="${i}" type="number" step="any" value="${it.qty||0}"></td>
+              <td class="num"><input data-field="rate" data-idx="${i}" type="number" step="0.01" value="${it.rate||0}"></td>
+              <td class="li-amt">${fmtINR((it.qty||0)*(it.rate||0))}</td>
+              <td><button class="btn btn-icon btn-ghost" title="Remove" onclick="removeRentalLineItem('${r.id}',${i})">×</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      ${(r.items||[]).length===0 ? '<div style="padding:24px;text-align:center;color:var(--muted)">No items yet. Click <b>+ Add row</b> to add rental items.</div>' : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Payment</div></div>
+      <div class="form-grid">
+        <div class="field"><label>Advance Received (₹)</label><input id="rd_advance" type="number" step="0.01" min="0" value="${r.advance||0}" onchange="updateRentalField('${r.id}','advance',+this.value||0)"></div>
+      </div>
+      <div class="totals">
+        <div class="lbl grand">Total Amount</div><div class="val grand">${fmtINR(total)}</div>
+        <div class="lbl" style="color:var(--green)">Advance</div><div class="val" style="color:var(--green)">${fmtINR(+r.advance||0)}</div>
+        <div class="lbl" style="color:${pending>0?'var(--amber)':'var(--muted)'}">Pending</div><div class="val" style="color:${pending>0?'var(--amber)':'var(--muted)'}">${fmtINR(pending)}</div>
+      </div>
+    </div>
+  `;
+
+  // Wire up rental item inputs (auto-save on input change)
+  document.querySelectorAll('#rentalItemsBody input').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const idx = +e.target.dataset.idx;
+      const field = e.target.dataset.field;
+      let val = e.target.value;
+      if(field==='qty' || field==='rate') val = +val || 0;
+      r.items[idx][field] = val;
+      // Update the amount cell
+      const row = e.target.closest('tr');
+      if(row){
+        const amtCell = row.querySelector('.li-amt');
+        if(amtCell) amtCell.textContent = fmtINR((r.items[idx].qty||0)*(r.items[idx].rate||0));
+      }
+    });
+    inp.addEventListener('blur', ()=>{
+      r.updated = new Date().toISOString();
+      saveDB();
+      // Re-render the totals only (cheap)
+      renderRentalDetail(r.id);
+    });
+  });
+}
+
+function updateRentalField(id, field, val){
+  const r = DB.rentals.find(x=>x.id===id);
+  if(!r) return;
+  r[field] = val;
+  r.updated = new Date().toISOString();
+  saveDB();
+  if(field==='status' || field==='advance' || field==='event_date' || field==='event_manager' || field==='venue') renderRentalDetail(id);
+  toast('Saved');
+}
+
+function addRentalLineItem(id){
+  const r = DB.rentals.find(x=>x.id===id);
+  if(!r) return;
+  if(!Array.isArray(r.items)) r.items = [];
+  r.items.push({make:'', desc:'', qty:1, rate:0});
+  r.updated = new Date().toISOString();
+  saveDB();
+  renderRentalDetail(id);
+  // focus the new row's make field
+  setTimeout(()=>{
+    const inputs = document.querySelectorAll('#rentalItemsBody input[data-field="make"]');
+    if(inputs.length) inputs[inputs.length-1].focus();
+  }, 50);
+}
+
+function removeRentalLineItem(id, idx){
+  const r = DB.rentals.find(x=>x.id===id);
+  if(!r || !Array.isArray(r.items)) return;
+  r.items.splice(idx, 1);
+  r.updated = new Date().toISOString();
+  saveDB();
+  renderRentalDetail(id);
+}
+
+function deleteRental(id){
+  const r = DB.rentals.find(x=>x.id===id);
+  if(!r) return;
+  if(!confirm(`Delete rental for "${r.event_manager||'(no manager)'}" on ${fmtDate(r.event_date)}? This cannot be undone.`)) return;
+  DB.rentals = DB.rentals.filter(x=>x.id!==id);
+  saveDB();
+  toast('Rental deleted');
+  navigate('rentals');
 }
 
 /* ============================================================
