@@ -197,9 +197,10 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .print-totals tr.grand td{font-size:13pt;font-weight:700;color:#ff7a2f;border-top:2px solid #1a1a1a;padding-top:8px}
 .print-foot{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-top:22px;padding-top:14px;border-top:1px solid #ddd;font-size:9pt;color:#444}
 .print-foot .lbl{font-weight:700;color:#1a1a1a;margin-bottom:3px;font-size:9.5pt}
-.print-sign{margin-top:38px;display:flex;justify-content:space-between;align-items:flex-end}
-.print-sign-line{border-top:1px solid #999;width:180px;text-align:center;padding-top:5px;font-size:9pt;color:#666}
-.print-thanks{font-size:9pt;color:#999;font-style:italic}
+.print-sign{margin-top:70px;display:flex;justify-content:flex-end;align-items:flex-end}
+.print-sign-line{border-top:1px solid #999;width:200px;text-align:center;padding-top:5px;font-size:9pt;color:#666}
+.print-thanks{font-size:10pt;color:#888;font-style:italic;text-align:center;margin-top:36px}
+.print-foot .terms-line{padding-left:14px;text-indent:-14px;line-height:1.45}
 .print-watermark{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:8pt;color:#bbb;letter-spacing:1px}
 
 /* responsive */
@@ -2626,12 +2627,10 @@ function printQuote(id){
           <tr>
             <th style="width:30px">#</th>
             <th>Item</th>
-            <th style="width:80px">Code</th>
-            <th style="width:60px">Origin</th>
-            <th style="width:50px" class="num">UOM</th>
+            <th style="width:60px" class="num">UOM</th>
             <th style="width:60px" class="num">Qty</th>
-            <th style="width:90px" class="num">Unit Price</th>
-            <th style="width:100px" class="num">Amount</th>
+            <th style="width:100px" class="num">Unit Price</th>
+            <th style="width:110px" class="num">Amount</th>
           </tr>
         </thead>
         <tbody>
@@ -2641,10 +2640,7 @@ function printQuote(id){
               <td>
                 <div class="item-make">${escapeHTML(it.make||'')}</div>
                 <div class="item-desc">${escapeHTML(it.desc||'')}</div>
-                ${it.code?`<div class="item-code">${escapeHTML(it.code)}</div>`:''}
               </td>
-              <td style="font-size:8.5pt;color:#888">${escapeHTML(it.code||'')}</td>
-              <td>${escapeHTML(it.country||'')}</td>
               <td class="num">${escapeHTML(it.uom||'')}</td>
               <td class="num">${fmtNum(it.qty)}</td>
               <td class="num">${fmtINR2(it.price)}</td>
@@ -2674,15 +2670,15 @@ function printQuote(id){
           <div class="lbl">Terms</div>
           ${(()=>{
             const txt = (q.terms && q.terms.trim()) || (c.default_terms && c.default_terms.trim()) || BUILTIN_DEFAULT_TERMS;
-            return txt.split('\n').map(line=>`<div>${escapeHTML(line)}</div>`).join('');
+            return txt.split('\n').map(line=>`<div class="terms-line">${escapeHTML(line)}</div>`).join('');
           })()}
         </div>
       </div>
 
       <div class="print-sign">
-        <div class="print-thanks">Thank you for your business.</div>
         <div class="print-sign-line">For ${escapeHTML(c.name)}<br><b>${escapeHTML(c.contact_person||'')}</b></div>
       </div>
+      <div class="print-thanks">Thank you for your business.</div>
     </div>
   `;
 
