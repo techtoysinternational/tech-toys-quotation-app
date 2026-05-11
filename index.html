@@ -3467,6 +3467,7 @@ function renderRentalDetail(id){
       <div class="page-actions">
         <button class="btn" onclick="navigate('rentals')">← Back</button>
         <button class="btn btn-danger" onclick="deleteRental('${r.id}')">🗑 Delete</button>
+        <button class="btn btn-primary" onclick="saveRental('${r.id}')">💾 Save</button>
       </div>
     </div>
 
@@ -3541,20 +3542,60 @@ function renderRentalDetail(id){
       let val = e.target.value;
       if(field==='qty' || field==='rate') val = +val || 0;
       r.items[idx][field] = val;
-      // Update the amount cell
+      // Update the row's amount cell so the user sees the change live
       const row = e.target.closest('tr');
       if(row){
         const amtCell = row.querySelector('.li-amt');
         if(amtCell) amtCell.textContent = fmtINR((r.items[idx].qty||0)*(r.items[idx].rate||0));
       }
     });
+    // Save silently on blur (no re-render — preserves focus so the user
+    // can tab between line item cells without the DOM rebuilding).
     inp.addEventListener('blur', ()=>{
       r.updated = new Date().toISOString();
       saveDB();
-      // Re-render the totals only (cheap)
-      renderRentalDetail(r.id);
     });
   });
+}
+
+function saveRental(id){
+  // Explicit Save button handler. Pulls current values from every input
+  // on the page, writes to DB, then re-renders so totals refresh.
+  const r = DB.rentals.find(x=>x.id===id);
+  if(!r) return;
+  ensureRentals();
+
+  // Metadata fields
+  const fields = {
+    event_date: 'rd_date',
+    event_manager: 'rd_mgr',
+    venue: 'rd_venue',
+    reference: 'rd_ref',
+    notes: 'rd_notes',
+    status: 'rd_status',
+  };
+  Object.entries(fields).forEach(([key, id])=>{
+    const el = document.getElementById(id);
+    if(el) r[key] = el.value;
+  });
+  const advEl = document.getElementById('rd_advance');
+  if(advEl) r.advance = +advEl.value || 0;
+
+  // Line items (already in r.items via input handler, but re-read just in case
+  // the user typed in a field and clicked Save without blurring first).
+  document.querySelectorAll('#rentalItemsBody input').forEach(inp=>{
+    const idx = +inp.dataset.idx;
+    const field = inp.dataset.field;
+    if(!r.items[idx]) return;
+    let val = inp.value;
+    if(field==='qty' || field==='rate') val = +val || 0;
+    r.items[idx][field] = val;
+  });
+
+  r.updated = new Date().toISOString();
+  saveDB();
+  toast('Rental saved');
+  renderRentalDetail(r.id);
 }
 
 function updateRentalField(id, field, val){
