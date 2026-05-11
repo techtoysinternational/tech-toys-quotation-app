@@ -223,13 +223,15 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
   <div class="login-card">
     <div class="login-logo">TECH TOYS</div>
     <div class="login-tagline">Quotation System</div>
-    <div class="login-err" id="loginErr">Incorrect password</div>
+    <div class="login-err" id="loginErr">Incorrect username or password</div>
     <form id="loginForm">
-      <label>Password</label>
-      <input type="password" id="loginPwd" autocomplete="current-password" required autofocus>
+      <label>Username</label>
+      <input type="text" id="loginUsername" autocomplete="username" required autofocus>
+      <label style="margin-top:14px">Password</label>
+      <input type="password" id="loginPwd" autocomplete="current-password" required>
       <button class="btn btn-primary" type="submit" style="width:100%;margin-top:14px;justify-content:center">Sign in</button>
     </form>
-    <div class="login-hint">First time? Default password: <b>techtoys</b><br>Change it in Settings after login.</div>
+    <div class="login-hint">First time? Username: <b>admin</b> · Password: <b>techtoys</b><br>Manage users in Settings after login.</div>
   </div>
 </div>
 
@@ -290,6 +292,8 @@ const BUILTIN_DEFAULT_TERMS = `· This quotation is valid for 30 days from date 
 · 50% advance, balance on delivery.
 · Prices are inclusive of installation unless stated otherwise.`;
 const SESSION_KEY = 'techToys_session';
+const USER_KEY = 'techToys_currentUser';
+const USER_ROLES = ['Admin','Staff'];
 const DEFAULT_PWD_SHA = '972f20091e552900614c3b5f322dbee7004bd913c6d865d06360a3cf40cc129f'; // sha256 of 'techtoys'
 
 let DB = null;
@@ -362,6 +366,20 @@ function loadDB(){
       // Ensure rentals array exists
       if(!Array.isArray(DB.rentals)){
         DB.rentals = [];
+        _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
+      }
+      // Ensure users array exists with a default admin matching the legacy single password
+      if(!Array.isArray(DB.users) || DB.users.length === 0){
+        const legacyHash = localStorage.getItem(PWD_KEY) || DEFAULT_PWD_SHA;
+        DB.users = [{
+          id: 'U0001',
+          username: 'admin',
+          password_hash: legacyHash,
+          role: 'Admin',
+          name: (DB.company && DB.company.contact_person) || 'Admin',
+          created: new Date().toISOString(),
+          active: true,
+        }];
         _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
       }
       // Ensure company-wide default Terms & Conditions exist (used by Settings + print template)
@@ -726,24 +744,66 @@ async function sha256(s){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
-async function login(pwd){
-  const stored = localStorage.getItem(PWD_KEY) || DEFAULT_PWD_SHA;
+async function login(username, pwd){
+  // Multi-user login. Falls back to the legacy single-password check
+  // if DB.users hasn't been migrated yet (first load on a fresh device).
   const h = await sha256(pwd);
+  const uname = (username||'').trim().toLowerCase();
+  if(Array.isArray(DB && DB.users) && DB.users.length){
+    const user = DB.users.find(u =>
+      (u.username||'').toLowerCase() === uname &&
+      u.password_hash === h &&
+      u.active !== false
+    );
+    if(user){
+      sessionStorage.setItem(SESSION_KEY, '1');
+      sessionStorage.setItem(USER_KEY, JSON.stringify({
+        id: user.id, username: user.username, role: user.role, name: user.name||user.username
+      }));
+      return user;
+    }
+    return null;
+  }
+  // Legacy fallback (pre-multi-user): accept any username if password matches the single stored hash.
+  const stored = localStorage.getItem(PWD_KEY) || DEFAULT_PWD_SHA;
   if(h === stored){
     sessionStorage.setItem(SESSION_KEY, '1');
-    return true;
+    sessionStorage.setItem(USER_KEY, JSON.stringify({
+      id: 'U0001', username: uname || 'admin', role: 'Admin', name: 'Admin'
+    }));
+    return { id: 'U0001', username: uname || 'admin', role: 'Admin' };
   }
-  return false;
+  return null;
 }
 function isLoggedIn(){ return sessionStorage.getItem(SESSION_KEY) === '1'; }
-function logout(){ sessionStorage.removeItem(SESSION_KEY); location.reload(); }
+function currentUser(){
+  try { return JSON.parse(sessionStorage.getItem(USER_KEY) || 'null'); }
+  catch(e){ return null; }
+}
+function isAdmin(){
+  const u = currentUser();
+  return !!(u && u.role === 'Admin');
+}
+function logout(){
+  sessionStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem(USER_KEY);
+  location.reload();
+}
 async function changePwd(oldP, newP){
-  const stored = localStorage.getItem(PWD_KEY) || DEFAULT_PWD_SHA;
-  const h = await sha256(oldP);
-  if(h !== stored) return false;
-  localStorage.setItem(PWD_KEY, await sha256(newP));
+  // Change password for the CURRENT logged-in user.
+  const me = currentUser();
+  if(!me) return false;
+  ensureUsers();
+  const user = DB.users.find(u => u.id === me.id);
+  if(!user) return false;
+  const oldH = await sha256(oldP);
+  if(user.password_hash !== oldH) return false;
+  user.password_hash = await sha256(newP);
+  user.updated = new Date().toISOString();
+  saveDB();
   return true;
 }
+function ensureUsers(){ if(!Array.isArray(DB.users)) DB.users = []; }
 
 /* -------- Utilities -------- */
 const fmtINR = n => '₹' + (Number(n)||0).toLocaleString('en-IN', {maximumFractionDigits: 0});
@@ -798,15 +858,29 @@ const NAV = [
   {id:'products', label:'Products', ico:'📦'},
   {id:'settings', label:'Settings', ico:'⚙️'},
 ];
+// Views restricted to Admin role only. Non-admins are redirected to dashboard.
+const ADMIN_ONLY_VIEWS = new Set(['settings']);
+
+function navAllowed(viewId){
+  if(!ADMIN_ONLY_VIEWS.has(viewId)) return true;
+  return isAdmin();
+}
+
 function renderNav(){
   const el = document.getElementById('navList');
-  el.innerHTML = NAV.map(n=>`
+  el.innerHTML = NAV.filter(n => navAllowed(n.id)).map(n=>`
     <div class="nav-item ${n.id===CURRENT_VIEW?'active':''}" onclick="navigate('${n.id}')">
       <span class="ico">${n.ico}</span><span>${n.label}</span>
     </div>
   `).join('');
 }
 function navigate(view, params){
+  // Guard admin-only views even if accessed via URL hash directly
+  if(!navAllowed(view)){
+    toast('You don\'t have access to that page', 'error');
+    view = 'dashboard';
+    params = undefined;
+  }
   CURRENT_VIEW = view;
   location.hash = '#' + view + (params ? '/' + params : '');
   renderNav();
@@ -933,7 +1007,70 @@ function renderDashboard(){
           <div class="kpi-sub">${stale > 0 ? `<b style="color:var(--amber)">⚠ ${stale} stale (>${LEAD_STALE_DAYS}d)</b>` : 'All up to date'}</div>
         </div>`;
       })()}
+      ${(()=>{
+        ensureRentals();
+        const fyRentals = filterRentalsByFY(DB.rentals).filter(r=>r.status!=='Cancelled');
+        const booked = fyRentals.reduce((s,r)=>s+rentalTotal(r),0);
+        const collected = fyRentals.reduce((s,r)=>s+(+r.advance||0),0);
+        const pending = fyRentals.reduce((s,r)=>s+rentalPending(r),0);
+        const todayStr = new Date().toISOString().slice(0,10);
+        const upcomingCount = fyRentals.filter(r=>r.status==='Upcoming' && (r.event_date||'') >= todayStr).length;
+        return `
+        <div class="kpi accent" style="cursor:pointer" onclick="navigate('rentals')">
+          <div class="kpi-label">Rental Bookings</div>
+          <div class="kpi-value">${fmtINR(booked)}</div>
+          <div class="kpi-sub">${fyRentals.length} rental(s) · ${upcomingCount} upcoming</div>
+        </div>
+        <div class="kpi green" style="cursor:pointer" onclick="navigate('rentals')">
+          <div class="kpi-label">Rental Advance</div>
+          <div class="kpi-value">${fmtINR(collected)}</div>
+          <div class="kpi-sub">Collected so far</div>
+        </div>
+        <div class="kpi amber" style="cursor:pointer" onclick="navigate('rentals')">
+          <div class="kpi-label">Rental Pending</div>
+          <div class="kpi-value">${fmtINR(pending)}</div>
+          <div class="kpi-sub">Yet to collect</div>
+        </div>`;
+      })()}
     </div>
+
+    ${(()=>{
+      ensureRentals();
+      const todayStr = new Date().toISOString().slice(0,10);
+      const upcoming = filterRentalsByFY(DB.rentals)
+        .filter(r => r.status === 'Upcoming' && (r.event_date||'') >= todayStr)
+        .sort((a,b)=>(a.event_date||'').localeCompare(b.event_date||''))
+        .slice(0, 6);
+      if(upcoming.length === 0) return '';
+      return `<div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Upcoming events</div>
+            <div class="card-sub">Next ${upcoming.length} rental${upcoming.length===1?'':'s'} by event date</div>
+          </div>
+          <button class="btn btn-sm" onclick="navigate('rentals')">View all →</button>
+        </div>
+        <table class="tbl tbl-clickable">
+          <thead><tr><th>Event Date</th><th>Event Manager</th><th>Venue</th><th class="num">Total</th><th class="num">Advance</th><th class="num">Pending</th></tr></thead>
+          <tbody>
+            ${upcoming.map(r=>{
+              const total = rentalTotal(r);
+              const adv = +r.advance||0;
+              const pending = rentalPending(r);
+              const daysAway = Math.ceil((new Date(r.event_date) - Date.now())/(1000*60*60*24));
+              return `<tr onclick="navigate('rental','${r.id}')">
+                <td><b>${fmtDate(r.event_date)}</b><div class="muted" style="font-size:11px">${daysAway<=0?'today':`in ${daysAway} day${daysAway===1?'':'s'}`}</div></td>
+                <td>${escapeHTML(r.event_manager||'—')}</td>
+                <td class="muted">${escapeHTML(r.venue||'—')}</td>
+                <td class="num"><b>${fmtINR(total)}</b></td>
+                <td class="num" style="color:${adv>0?'var(--green)':'var(--muted)'}">${fmtINR(adv)}</td>
+                <td class="num" style="color:${pending>0?'var(--amber)':'var(--muted)'}">${fmtINR(pending)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    })()}
 
     ${(()=>{
       ensureLeads();
@@ -2450,12 +2587,47 @@ function renderSettings(){
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">Change password</div></div>
+      <div class="card-head"><div class="card-title">Change your password</div></div>
+      <div class="muted" style="margin-bottom:10px;font-size:13px">Signed in as <b>${escapeHTML((currentUser()||{}).username||'')}</b> · ${escapeHTML((currentUser()||{}).role||'')}</div>
       <div class="form-grid">
         <div class="field"><label>Current password</label><input id="s_op" type="password"></div>
         <div class="field"><label>New password</label><input id="s_np" type="password"></div>
       </div>
       <button class="btn btn-primary" style="margin-top:14px" onclick="doChangePwd()">Change password</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">User management</div>
+          <div class="card-sub">Admin only — add users and assign access levels</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openUserModal()">➕ Add User</button>
+      </div>
+      ${(()=>{
+        ensureUsers();
+        const me = currentUser();
+        if(DB.users.length === 0) return '<div class="empty">No users yet.</div>';
+        return `<table class="tbl">
+          <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <tbody>
+            ${DB.users.map(u=>`<tr>
+              <td><b>${escapeHTML(u.username)}</b>${me && u.id===me.id?' <span class="tag" style="font-size:10px">you</span>':''}</td>
+              <td>${escapeHTML(u.name||'—')}</td>
+              <td><span class="pill ${u.role==='Admin'?'pill-won':'pill-sent'}">${escapeHTML(u.role||'Staff')}</span></td>
+              <td>${u.active===false?'<span class="pill pill-lost">Inactive</span>':'<span class="pill pill-paid">Active</span>'}</td>
+              <td class="muted">${fmtDate(u.created)}</td>
+              <td><div class="row" style="gap:4px">
+                <button class="btn btn-sm" onclick="openUserModal('${u.id}')">✏ Edit</button>
+                ${me && u.id===me.id ? '' : `<button class="btn btn-icon btn-ghost" title="Delete" onclick="deleteUser('${u.id}')">×</button>`}
+              </div></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+      })()}
+      <div class="muted" style="margin-top:10px;font-size:12px">
+        <b>Roles:</b> <b>Admin</b> = full access including Settings and user management. <b>Staff</b> = can use Dashboard, Leads, Quotes, Rentals, Clients, Products — cannot access Settings.
+      </div>
     </div>
 
     <div class="card">
@@ -3430,12 +3602,144 @@ function deleteRental(id){
 }
 
 /* ============================================================
+   USER MANAGEMENT — admin-only CRUD for app users
+   ============================================================ */
+function nextUserId(){
+  ensureUsers();
+  let n = 1;
+  while(DB.users.find(u=>u.id===`U${String(n).padStart(4,'0')}`)) n++;
+  return `U${String(n).padStart(4,'0')}`;
+}
+
+function openUserModal(id){
+  if(!isAdmin()){ toast('Admin access required', 'error'); return; }
+  ensureUsers();
+  const editing = id ? DB.users.find(u=>u.id===id) : null;
+  const u = editing || { username:'', name:'', role:'Staff', active:true };
+  openModal(`
+    <div class="modal-head">
+      <div class="modal-title">${editing ? 'Edit User' : 'Add User'}</div>
+      <button class="btn btn-icon btn-ghost" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label>Username *</label><input id="eu_un" value="${escapeHTML(u.username||'')}" placeholder="e.g. kunal" autocomplete="off" ${editing?'readonly style="opacity:0.6"':''}></div>
+        <div class="field"><label>Display Name</label><input id="eu_nm" value="${escapeHTML(u.name||'')}" placeholder="e.g. Kunal Singh"></div>
+        <div class="field"><label>Role *</label>
+          <select id="eu_rl">${USER_ROLES.map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('')}</select>
+          <div class="field-help">Admin = full access. Staff = no Settings access.</div>
+        </div>
+        <div class="field"><label>Status</label>
+          <select id="eu_ac">
+            <option value="true" ${u.active!==false?'selected':''}>Active</option>
+            <option value="false" ${u.active===false?'selected':''}>Inactive (cannot sign in)</option>
+          </select>
+        </div>
+        <div class="field full"><label>${editing?'New password (leave blank to keep current)':'Password *'}</label><input id="eu_pw" type="password" autocomplete="new-password" placeholder="${editing?'•••••• (unchanged)':'At least 4 characters'}"></div>
+      </div>
+      ${editing?`<div class="muted" style="font-size:11px;margin-top:10px">User ID: ${escapeHTML(editing.id)} · Created ${fmtDate(editing.created)}${editing.updated?` · Updated ${fmtDate(editing.updated)}`:''}</div>`:''}
+    </div>
+    <div class="modal-foot">
+      ${editing && currentUser() && editing.id !== currentUser().id ? `<button class="btn btn-danger" style="margin-right:auto" onclick="deleteUser('${editing.id}')">🗑 Delete</button>` : ''}
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveUser('${editing?editing.id:''}')">${editing?'Save':'Create user'}</button>
+    </div>
+  `);
+}
+
+async function saveUser(id){
+  if(!isAdmin()){ toast('Admin access required', 'error'); return; }
+  ensureUsers();
+  const username = document.getElementById('eu_un').value.trim();
+  const name = document.getElementById('eu_nm').value.trim();
+  const role = document.getElementById('eu_rl').value;
+  const active = document.getElementById('eu_ac').value === 'true';
+  const pwd = document.getElementById('eu_pw').value;
+
+  if(!username){ alert('Username is required'); return; }
+  if(!USER_ROLES.includes(role)){ alert('Invalid role'); return; }
+
+  // Username uniqueness (case-insensitive, excluding self when editing)
+  const dup = DB.users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== id);
+  if(dup){ alert('That username is already taken.'); return; }
+
+  if(id){
+    const u = DB.users.find(x=>x.id===id);
+    if(!u){ alert('User not found'); return; }
+    // Username cannot change on edit (input is readonly). Keep stored value.
+    u.name = name;
+    u.role = role;
+    u.active = active;
+    if(pwd){
+      if(pwd.length < 4){ alert('Password must be at least 4 characters'); return; }
+      u.password_hash = await sha256(pwd);
+    }
+    u.updated = new Date().toISOString();
+    // Safety: don't let admin demote themselves to Staff and lock everyone out.
+    const me = currentUser();
+    if(me && u.id === me.id && role !== 'Admin'){
+      const otherAdmins = DB.users.filter(x => x.role === 'Admin' && x.id !== u.id && x.active !== false).length;
+      if(otherAdmins === 0){
+        alert('You cannot demote yourself — you are the only active Admin.');
+        u.role = 'Admin';
+      } else {
+        // Refresh session role
+        sessionStorage.setItem(USER_KEY, JSON.stringify({...me, role: role}));
+      }
+    }
+    saveDB();
+    toast('User updated');
+  } else {
+    if(!pwd){ alert('Password is required for a new user'); return; }
+    if(pwd.length < 4){ alert('Password must be at least 4 characters'); return; }
+    DB.users.push({
+      id: nextUserId(),
+      username, name, role, active,
+      password_hash: await sha256(pwd),
+      created: new Date().toISOString(),
+    });
+    saveDB();
+    toast('User created');
+  }
+  closeModal();
+  if(CURRENT_VIEW === 'settings') renderSettings();
+}
+
+function deleteUser(id){
+  if(!isAdmin()){ toast('Admin access required', 'error'); return; }
+  ensureUsers();
+  const me = currentUser();
+  if(me && id === me.id){ alert('You cannot delete the user you are currently signed in as.'); return; }
+  const u = DB.users.find(x=>x.id===id);
+  if(!u) return;
+  // Don't allow deleting the last active admin
+  if(u.role === 'Admin' && u.active !== false){
+    const otherAdmins = DB.users.filter(x => x.role === 'Admin' && x.id !== id && x.active !== false).length;
+    if(otherAdmins === 0){ alert('Cannot delete the last active Admin.'); return; }
+  }
+  if(!confirm(`Delete user "${u.username}"? This cannot be undone.`)) return;
+  DB.users = DB.users.filter(x=>x.id!==id);
+  saveDB();
+  toast('User deleted');
+  closeModal();
+  if(CURRENT_VIEW === 'settings') renderSettings();
+}
+
+/* ============================================================
    BOOT
    ============================================================ */
+// Load DB eagerly so the login form can check usernames against DB.users.
+// (The data here lives entirely in the browser; there is no server-side
+// secret. Loading it before authentication does not change the security
+// model — it just lets multi-user lookup work on first sign-in.)
+loadDB();
+
 document.getElementById('loginForm').addEventListener('submit', async e=>{
   e.preventDefault();
-  const ok = await login(document.getElementById('loginPwd').value);
-  if(ok){
+  const u = document.getElementById('loginUsername').value;
+  const p = document.getElementById('loginPwd').value;
+  const user = await login(u, p);
+  if(user){
     document.getElementById('loginErr').style.display='none';
     showApp();
   } else {
@@ -3447,8 +3751,9 @@ document.getElementById('loginForm').addEventListener('submit', async e=>{
 function showApp(){
   document.getElementById('loginWrap').style.display='none';
   document.getElementById('app').classList.add('show');
-  loadDB();
-  document.getElementById('navUser').textContent = DB.company.contact_person || DB.company.name;
+  // DB already loaded at page boot; refresh nav user from current session
+  const me = currentUser();
+  document.getElementById('navUser').textContent = (me && me.name) || (me && me.username) || (DB.company && (DB.company.contact_person || DB.company.name)) || 'User';
   renderFYSelector();
   const [view, param] = parseHash();
   navigate(view, param);
