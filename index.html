@@ -197,9 +197,9 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .print-totals tr.grand td{font-size:13pt;font-weight:700;color:#ff7a2f;border-top:2px solid #1a1a1a;padding-top:8px}
 .print-foot{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-top:22px;padding-top:14px;border-top:1px solid #ddd;font-size:9pt;color:#444}
 .print-foot .lbl{font-weight:700;color:#1a1a1a;margin-bottom:3px;font-size:9.5pt}
-.print-sign{margin-top:70px;display:flex;justify-content:flex-end;align-items:flex-end}
+.print-sign{margin-top:60px;display:flex;justify-content:flex-end;align-items:flex-end}
 .print-sign-line{border-top:1px solid #999;width:200px;text-align:center;padding-top:5px;font-size:9pt;color:#666}
-.print-thanks{font-size:10pt;color:#888;font-style:italic;text-align:center;margin-top:36px}
+.print-thanks{font-size:10pt;color:#888;font-style:italic;text-align:center;margin-top:48px}
 .print-foot .terms-line{padding-left:14px;text-indent:-14px;line-height:1.45}
 .print-watermark{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:8pt;color:#bbb;letter-spacing:1px}
 
@@ -2675,10 +2675,10 @@ function printQuote(id){
         </div>
       </div>
 
+      <div class="print-thanks">Thank you for your business.</div>
       <div class="print-sign">
         <div class="print-sign-line">For ${escapeHTML(c.name)}<br><b>${escapeHTML(c.contact_person||'')}</b></div>
       </div>
-      <div class="print-thanks">Thank you for your business.</div>
     </div>
   `;
 
