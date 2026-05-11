@@ -2662,8 +2662,7 @@ function printQuote(id){
         <div>
           <div class="lbl">Bank Details</div>
           <div>${escapeHTML(c.bank_name||'')} · ${escapeHTML(c.bank_branch||'')}</div>
-          <div>A/C Name: ${escapeHTML(c.bank_ac_name||'')}</div>
-          <div>A/C No: <b>${escapeHTML(c.bank_ac||'')}</b></div>
+          <div>A/C Name: ${escapeHTML(c.bank_ac_name||'')} · A/C No: <b>${escapeHTML(c.bank_ac||'')}</b></div>
           <div>IFSC: <b>${escapeHTML(c.bank_ifsc||'')}</b> · MICR: ${escapeHTML(c.bank_micr||'')}</div>
         </div>
         <div>
@@ -2675,10 +2674,10 @@ function printQuote(id){
         </div>
       </div>
 
-      <div class="print-thanks">Thank you for your business.</div>
       <div class="print-sign">
         <div class="print-sign-line">For ${escapeHTML(c.name)}<br><b>${escapeHTML(c.contact_person||'')}</b></div>
       </div>
+      <div class="print-thanks">Thank you for your business.</div>
     </div>
   `;
 
