@@ -201,6 +201,7 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .print-sign-line{border-top:1px solid #999;width:200px;text-align:center;padding-top:5px;font-size:9pt;color:#666}
 .print-thanks{font-size:10pt;color:#888;font-style:italic;text-align:center;margin-top:30px;padding-top:14px;border-top:1px solid #eee}
 .print-foot .terms-line{padding-left:14px;text-indent:-14px;line-height:1.45}
+.print-foot .bank-line{line-height:1.35;margin:0}
 .print-watermark{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:8pt;color:#bbb;letter-spacing:1px}
 
 /* responsive */
@@ -2661,9 +2662,10 @@ function printQuote(id){
       <div class="print-foot">
         <div>
           <div class="lbl">Bank Details</div>
-          <div>${escapeHTML(c.bank_name||'')} · ${escapeHTML(c.bank_branch||'')}</div>
-          <div>A/C Name: ${escapeHTML(c.bank_ac_name||'')} · A/C No: <b>${escapeHTML(c.bank_ac||'')}</b></div>
-          <div>IFSC: <b>${escapeHTML(c.bank_ifsc||'')}</b> · MICR: ${escapeHTML(c.bank_micr||'')}</div>
+          <div class="bank-line">${escapeHTML(c.bank_name||'')} · ${escapeHTML(c.bank_branch||'')}</div>
+          <div class="bank-line">A/C Name: ${escapeHTML(c.bank_ac_name||'')}</div>
+          <div class="bank-line">A/C No: <b>${escapeHTML(c.bank_ac||'')}</b></div>
+          <div class="bank-line">IFSC: <b>${escapeHTML(c.bank_ifsc||'')}</b> · MICR: ${escapeHTML(c.bank_micr||'')}</div>
         </div>
         <div>
           <div class="lbl">Terms</div>
