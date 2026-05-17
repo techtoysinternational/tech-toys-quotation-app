@@ -202,6 +202,13 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .print-thanks{font-size:10pt;color:#888;font-style:italic;text-align:center;margin-top:30px;padding-top:14px;border-top:1px solid #eee}
 .print-foot .terms-line{padding-left:14px;text-indent:-14px;line-height:1.45}
 .print-foot .bank-line{line-height:1.35;margin:0}
+.merged-section{margin-bottom:14px;padding-bottom:10px;border-bottom:1px dashed #ccc}
+.merged-section:last-of-type{border-bottom:none}
+.merged-section-head{font-weight:700;color:#1a1a1a;margin:14px 0 8px;font-size:11pt;display:flex;justify-content:space-between;align-items:baseline;border-left:3px solid #ff7a2f;padding-left:10px}
+.merged-section-head .meta{font-weight:400;color:#666;font-size:9.5pt}
+.merged-grand{background:#fff8f0;border:2px solid #ff7a2f;padding:14px 22px;margin:18px 0;display:flex;justify-content:space-between;align-items:baseline;border-radius:4px}
+.merged-grand .lbl{color:#ff7a2f;font-weight:700;font-size:11pt;text-transform:uppercase;letter-spacing:.5px}
+.merged-grand .val{color:#1a1a1a;font-weight:700;font-size:16pt;font-variant-numeric:tabular-nums}
 .print-watermark{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:8pt;color:#bbb;letter-spacing:1px}
 
 /* responsive */
@@ -1175,6 +1182,26 @@ function renderDashboard(){
    QUOTES LIST
    ============================================================ */
 let quotesFilter = {q:'', status:''};
+let selectedQuoteIds = new Set();
+
+function toggleQuoteSelection(id, checked){
+  if(checked) selectedQuoteIds.add(id);
+  else selectedQuoteIds.delete(id);
+  renderQuotes();
+}
+function toggleAllQuotesVisible(){
+  // List of currently-visible quote IDs comes from the rendered table
+  const visibleIds = Array.from(document.querySelectorAll('input.qs-row-check')).map(el=>el.dataset.qid);
+  const allChecked = visibleIds.length > 0 && visibleIds.every(id => selectedQuoteIds.has(id));
+  if(allChecked) visibleIds.forEach(id => selectedQuoteIds.delete(id));
+  else visibleIds.forEach(id => selectedQuoteIds.add(id));
+  renderQuotes();
+}
+function clearQuoteSelection(){
+  selectedQuoteIds.clear();
+  renderQuotes();
+}
+
 function renderQuotes(){
   let qs = filterQuotesByFY([...DB.quotes]);
   const totalInFY = qs.length;
@@ -1191,6 +1218,8 @@ function renderQuotes(){
 
   const totalVal = qs.reduce((s,q)=>s+quoteTotal(q),0);
   const totalOut = qs.reduce((s,q)=>s+quoteOutstanding(q),0);
+  const selectedCount = selectedQuoteIds.size;
+  const allVisibleChecked = qs.length > 0 && qs.every(q => selectedQuoteIds.has(q.id));
 
   document.getElementById('mainView').innerHTML = `
     <div class="page-head">
@@ -1198,10 +1227,12 @@ function renderQuotes(){
         <button class="btn btn-icon mobile-menu-btn" onclick="toggleSidebar()">☰</button>
         <div style="display:inline-block;vertical-align:middle">
           <div class="page-title">Quotations <span class="fy-badge">${escapeHTML(fyLabel())}</span></div>
-          <div class="page-sub">${qs.length} of ${totalInFY} ${CURRENT_FY==='all'?'(all time)':'in '+escapeHTML(activeFY())} · ${fmtINR(totalVal)} total · ${fmtINR(totalOut)} outstanding</div>
+          <div class="page-sub">${qs.length} of ${totalInFY} ${CURRENT_FY==='all'?'(all time)':'in '+escapeHTML(activeFY())} · ${fmtINR(totalVal)} total · ${fmtINR(totalOut)} outstanding${selectedCount>0?` · <b style="color:var(--accent2)">${selectedCount} selected</b>`:''}</div>
         </div>
       </div>
       <div class="page-actions">
+        ${selectedCount >= 2 ? `<button class="btn btn-primary" onclick="mergeSelectedQuotes()">🗂️ Merge ${selectedCount} into one PDF</button>` : ''}
+        ${selectedCount >= 1 ? `<button class="btn" onclick="clearQuoteSelection()">Clear (${selectedCount})</button>` : ''}
         <button class="btn btn-primary" onclick="navigate('new-quote')">➕ New Quote</button>
       </div>
     </div>
@@ -1216,17 +1247,24 @@ function renderQuotes(){
 
     <div class="card" style="padding:0">
       <table class="tbl tbl-clickable">
-        <thead><tr><th>Client</th><th>Project</th><th>PI No.</th><th>Date</th><th>Items</th><th>Status</th><th class="num">Total</th><th class="num">Collected</th><th class="num">Outstanding</th></tr></thead>
+        <thead><tr>
+          <th style="width:34px;text-align:center"><input type="checkbox" id="qsSelectAll" ${allVisibleChecked?'checked':''} onclick="event.stopPropagation();toggleAllQuotesVisible()" title="Select all visible"></th>
+          <th>Client</th><th>Project</th><th>PI No.</th><th>Date</th><th>Items</th><th>Status</th><th class="num">Total</th><th class="num">Collected</th><th class="num">Outstanding</th>
+        </tr></thead>
         <tbody>
-          ${qs.length === 0 ? '<tr><td colspan="9" class="empty">No quotations match your filters.</td></tr>' :
+          ${qs.length === 0 ? '<tr><td colspan="10" class="empty">No quotations match your filters.</td></tr>' :
             qs.map(q=>{
               const linked = q.client_id ? (DB.clients||[]).find(c=>c.id===q.client_id) : null;
               const clientName = linked ? linked.name : (q.client||'');
               const projectName = q.project_name || (linked ? '' : q.client) || '';
               const collected = quoteCollected(q);
               const outstanding = quoteOutstanding(q);
+              const checked = selectedQuoteIds.has(q.id);
               return `
-              <tr onclick="navigate('quote', '${q.id}')">
+              <tr onclick="navigate('quote', '${q.id}')" style="${checked?'background:rgba(255,122,47,0.08)':''}">
+                <td style="text-align:center" onclick="event.stopPropagation()">
+                  <input type="checkbox" class="qs-row-check" data-qid="${q.id}" ${checked?'checked':''} onclick="event.stopPropagation();toggleQuoteSelection('${q.id}',this.checked)">
+                </td>
                 <td><b>${escapeHTML(clientName)}</b></td>
                 <td>${escapeHTML(projectName)}</td>
                 <td class="muted">${escapeHTML(q.pi_no||'')}</td>
@@ -2851,6 +2889,160 @@ function printQuote(id){
           <div class="lbl">Terms</div>
           ${(()=>{
             const txt = (q.terms && q.terms.trim()) || (c.default_terms && c.default_terms.trim()) || BUILTIN_DEFAULT_TERMS;
+            return txt.split('\n').map(line=>`<div class="terms-line">${escapeHTML(line)}</div>`).join('');
+          })()}
+        </div>
+      </div>
+
+      <div class="print-sign">
+        <div class="print-sign-line">For ${escapeHTML(c.name)}<br><b>${escapeHTML(c.contact_person||'')}</b></div>
+      </div>
+      <div class="print-thanks">Thank you for your business.</div>
+    </div>
+  `;
+
+  document.getElementById('print-area').innerHTML = html;
+  setTimeout(()=>{ window.print(); }, 100);
+}
+
+/* -------- Merge multiple quotations into one combined PDF -------- */
+function mergeSelectedQuotes(){
+  const ids = Array.from(selectedQuoteIds);
+  if(ids.length < 2){ alert('Select at least 2 quotations to merge.'); return; }
+  const quotes = ids.map(id => DB.quotes.find(q => q.id === id)).filter(Boolean);
+  if(quotes.length < 2){ alert('Some selected quotations no longer exist.'); return; }
+
+  // Enforce same client — a merged quotation only makes sense per client.
+  const clientIds = new Set(quotes.map(q => q.client_id).filter(Boolean));
+  const looseClients = new Set(quotes.filter(q => !q.client_id).map(q => (q.client||'').toLowerCase()));
+  if(clientIds.size > 1 || (clientIds.size === 0 && looseClients.size > 1) || (clientIds.size === 1 && looseClients.size > 0)){
+    const names = [...new Set(quotes.map(q => {
+      const c = q.client_id ? (DB.clients||[]).find(x=>x.id===q.client_id) : null;
+      return c ? c.name : (q.client||'(no client)');
+    }))];
+    alert(`Cannot merge — selected quotations belong to different clients:\n\n${names.join('\n')}\n\nPlease select quotations for a single client only.`);
+    return;
+  }
+  // Sort by date ascending so the combined PDF reads chronologically.
+  quotes.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  printMergedQuote(quotes);
+}
+
+function printMergedQuote(quotes){
+  const c = DB.company;
+  const firstClient = quotes[0].client_id ? (DB.clients||[]).find(x => x.id === quotes[0].client_id) : null;
+  const clientName = firstClient ? firstClient.name : (quotes[0].client||'');
+  const addrLines = firstClient ? [firstClient.address_l1, firstClient.address_l2, [firstClient.city, firstClient.state, firstClient.pincode].filter(Boolean).join(' - ')].filter(Boolean) : [];
+  const contactLine = firstClient ? [firstClient.contact_person, firstClient.phone, firstClient.email].filter(Boolean).join(' · ') : '';
+  const piList = quotes.map(q => q.pi_no || q.id).join(', ');
+  const combinedGrandTotal = quotes.reduce((s,q) => s + quoteTotal(q), 0);
+
+  function sectionHtml(q, idx){
+    const sub = quoteSubtotal(q);
+    const afterDisc = quoteAfterDiscount(q);
+    const tax = quoteTax(q);
+    const total = quoteTotal(q);
+    const taxRows = q.tax_type==='SGST_CGST'
+      ? `<tr><td>SGST @ 9%</td><td>${fmtINR2(afterDisc*0.09)}</td></tr><tr><td>CGST @ 9%</td><td>${fmtINR2(afterDisc*0.09)}</td></tr>`
+      : q.tax_type==='IGST'
+      ? `<tr><td>IGST @ 18%</td><td>${fmtINR2(tax)}</td></tr>`
+      : '';
+    const projectLabel = q.project_name || q.client || '(unnamed)';
+    return `<div class="merged-section">
+      <div class="merged-section-head">
+        <span>Project ${idx+1} — ${escapeHTML(projectLabel)}</span>
+        <span class="meta">${escapeHTML(q.pi_no||'')} · ${fmtDate(q.date)}</span>
+      </div>
+      <table class="print-tbl">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Item</th>
+            <th style="width:60px" class="num">UOM</th>
+            <th style="width:60px" class="num">Qty</th>
+            <th style="width:100px" class="num">Unit Price</th>
+            <th style="width:110px" class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${q.items.map((it,i)=>`
+            <tr>
+              <td>${i+1}</td>
+              <td>
+                <div class="item-make">${escapeHTML(it.make||'')}</div>
+                <div class="item-desc">${escapeHTML(it.desc||'')}</div>
+              </td>
+              <td class="num">${escapeHTML(it.uom||'')}</td>
+              <td class="num">${fmtNum(it.qty)}</td>
+              <td class="num">${fmtINR2(it.price)}</td>
+              <td class="num"><b>${fmtINR2((it.qty||0)*(it.price||0))}</b></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <table class="print-totals">
+        <tr><td>Subtotal</td><td>${fmtINR2(sub)}</td></tr>
+        ${q.discount ? `<tr><td>Discount</td><td>− ${fmtINR2(q.discount)}</td></tr>` : ''}
+        ${q.discount ? `<tr><td>After discount</td><td>${fmtINR2(afterDisc)}</td></tr>` : ''}
+        ${taxRows}
+        <tr class="grand"><td>${escapeHTML(q.pi_no||'')} Total</td><td>${fmtINR2(total)}</td></tr>
+      </table>
+    </div>`;
+  }
+
+  const html = `
+    <div class="print-page">
+      <div class="print-header">
+        <div>
+          <div class="print-brand">${escapeHTML(c.name)}</div>
+          <div class="print-tag">${escapeHTML(c.tagline||'')}</div>
+          <div style="font-size:9pt;color:#666;margin-top:8px">
+            ${escapeHTML(c.address_l1||'')}, ${escapeHTML(c.address_l2||'')}<br>
+            GSTIN: ${escapeHTML(c.gstin||'')} · PAN: ${escapeHTML(c.pan||'')} · State: ${escapeHTML(c.state||'')} (${escapeHTML(c.state_code||'')})<br>
+            ${escapeHTML(c.email||'')} · ${escapeHTML(c.phone||'')}
+          </div>
+        </div>
+        <div class="print-meta">
+          <div style="font-size:14pt;font-weight:700;color:#1a1a1a;margin-bottom:4px">QUOTATION (Combined)</div>
+          <div class="pi" style="font-size:10pt">${escapeHTML(piList)}</div>
+          <div style="margin-top:6px">Date: <b>${fmtDate(today())}</b></div>
+        </div>
+      </div>
+
+      <div class="print-cust">
+        <div class="print-cust-block">
+          <div class="print-section-title">Quotation For</div>
+          <div class="name">${escapeHTML(clientName)}</div>
+          ${addrLines.length ? `<div class="addr">${addrLines.map(escapeHTML).join('<br>')}</div>` : ''}
+          ${contactLine ? `<div class="addr" style="margin-top:3px">${escapeHTML(contactLine)}</div>` : ''}
+          ${firstClient && firstClient.gstin ? `<div class="addr" style="margin-top:3px"><b>GSTIN:</b> ${escapeHTML(firstClient.gstin)}${firstClient.pan?` &nbsp; <b>PAN:</b> ${escapeHTML(firstClient.pan)}`:''}</div>` : ''}
+          <div class="addr" style="margin-top:6px"><b>Combined quotation covering ${quotes.length} projects.</b></div>
+        </div>
+        <div class="print-cust-block" style="text-align:right">
+          <div class="print-section-title">Projects Included</div>
+          <div class="addr" style="font-size:9pt">${quotes.map(q=>`${escapeHTML(q.pi_no||'')} — ${escapeHTML(q.project_name||q.client||'(unnamed)')}`).join('<br>')}</div>
+        </div>
+      </div>
+
+      ${quotes.map((q,i)=>sectionHtml(q,i)).join('')}
+
+      <div class="merged-grand">
+        <div class="lbl">Combined Grand Total (${quotes.length} projects)</div>
+        <div class="val">${fmtINR2(combinedGrandTotal)}</div>
+      </div>
+
+      <div class="print-foot">
+        <div>
+          <div class="lbl">Bank Details</div>
+          <div class="bank-line">${escapeHTML(c.bank_name||'')} · ${escapeHTML(c.bank_branch||'')}</div>
+          <div class="bank-line">A/C Name: ${escapeHTML(c.bank_ac_name||'')}</div>
+          <div class="bank-line">A/C No: <b>${escapeHTML(c.bank_ac||'')}</b></div>
+          <div class="bank-line">IFSC: <b>${escapeHTML(c.bank_ifsc||'')}</b> · MICR: ${escapeHTML(c.bank_micr||'')}</div>
+        </div>
+        <div>
+          <div class="lbl">Terms</div>
+          ${(()=>{
+            const txt = (c.default_terms && c.default_terms.trim()) || BUILTIN_DEFAULT_TERMS;
             return txt.split('\n').map(line=>`<div class="terms-line">${escapeHTML(line)}</div>`).join('');
           })()}
         </div>
