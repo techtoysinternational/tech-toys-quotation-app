@@ -206,9 +206,13 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .merged-section:last-of-type{border-bottom:none}
 .merged-section-head{font-weight:700;color:#1a1a1a;margin:14px 0 8px;font-size:11pt;display:flex;justify-content:space-between;align-items:baseline;border-left:3px solid #ff7a2f;padding-left:10px}
 .merged-section-head .meta{font-weight:400;color:#666;font-size:9.5pt}
-.merged-grand{background:#fff8f0;border:2px solid #ff7a2f;padding:14px 22px;margin:18px 0;display:flex;justify-content:space-between;align-items:baseline;border-radius:4px}
-.merged-grand .lbl{color:#ff7a2f;font-weight:700;font-size:11pt;text-transform:uppercase;letter-spacing:.5px}
-.merged-grand .val{color:#1a1a1a;font-weight:700;font-size:16pt;font-variant-numeric:tabular-nums}
+.merged-grand{background:#fff8f0;border:2px solid #ff7a2f;padding:14px 22px;margin:18px 0;border-radius:4px;width:100%;border-collapse:collapse}
+.merged-grand td{padding:5px 0;font-variant-numeric:tabular-nums}
+.merged-grand td:first-child{color:#1a1a1a;font-weight:600;font-size:10pt}
+.merged-grand td:last-child{text-align:right;font-weight:600;font-size:11pt;color:#1a1a1a}
+.merged-grand tr.grand td{color:#ff7a2f;font-weight:700;font-size:11pt;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:1px solid #ffd9b5}
+.merged-grand tr.grand td:last-child{font-size:16pt;color:#1a1a1a;text-transform:none;letter-spacing:0}
+.merged-grand tr.due td:last-child{color:#b45309}
 .print-watermark{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:8pt;color:#bbb;letter-spacing:1px}
 
 /* responsive */
@@ -2870,11 +2874,13 @@ function printQuote(id){
       </table>
 
       <table class="print-totals">
-        <tr><td>Subtotal</td><td>${fmtINR2(sub)}</td></tr>
-        ${q.discount ? `<tr><td>Discount</td><td>− ${fmtINR2(q.discount)}</td></tr>` : ''}
-        ${q.discount ? `<tr><td>After discount</td><td>${fmtINR2(afterDisc)}</td></tr>` : ''}
-        ${taxRows}
-        <tr class="grand"><td>Grand Total</td><td>${fmtINR2(total)}</td></tr>
+        ${(q.discount > 0 || q.tax_type !== 'NONE') ? `
+          <tr><td>Subtotal</td><td>${fmtINR2(sub)}</td></tr>
+          ${q.discount ? `<tr><td>Discount</td><td>− ${fmtINR2(q.discount)}</td></tr>` : ''}
+          ${q.discount ? `<tr><td>After discount</td><td>${fmtINR2(afterDisc)}</td></tr>` : ''}
+          ${taxRows}
+        ` : ''}
+        <tr class="grand"><td>${(q.discount > 0 || q.tax_type !== 'NONE') ? 'Grand Total' : 'Total'}</td><td>${fmtINR2(total)}</td></tr>
       </table>
 
       <div class="print-foot">
@@ -2936,6 +2942,8 @@ function printMergedQuote(quotes){
   const contactLine = firstClient ? [firstClient.contact_person, firstClient.phone, firstClient.email].filter(Boolean).join(' · ') : '';
   const piList = quotes.map(q => q.pi_no || q.id).join(', ');
   const combinedGrandTotal = quotes.reduce((s,q) => s + quoteTotal(q), 0);
+  const combinedCollected = quotes.reduce((s,q) => s + quoteCollected(q), 0);
+  const combinedPending = Math.max(0, combinedGrandTotal - combinedCollected);
 
   function sectionHtml(q, idx){
     const sub = quoteSubtotal(q);
@@ -2981,10 +2989,12 @@ function printMergedQuote(quotes){
         </tbody>
       </table>
       <table class="print-totals">
-        <tr><td>Subtotal</td><td>${fmtINR2(sub)}</td></tr>
-        ${q.discount ? `<tr><td>Discount</td><td>− ${fmtINR2(q.discount)}</td></tr>` : ''}
-        ${q.discount ? `<tr><td>After discount</td><td>${fmtINR2(afterDisc)}</td></tr>` : ''}
-        ${taxRows}
+        ${(q.discount > 0 || q.tax_type !== 'NONE') ? `
+          <tr><td>Subtotal</td><td>${fmtINR2(sub)}</td></tr>
+          ${q.discount ? `<tr><td>Discount</td><td>− ${fmtINR2(q.discount)}</td></tr>` : ''}
+          ${q.discount ? `<tr><td>After discount</td><td>${fmtINR2(afterDisc)}</td></tr>` : ''}
+          ${taxRows}
+        ` : ''}
         <tr class="grand"><td>${escapeHTML(q.pi_no||'')} Total</td><td>${fmtINR2(total)}</td></tr>
       </table>
     </div>`;
@@ -3026,10 +3036,11 @@ function printMergedQuote(quotes){
 
       ${quotes.map((q,i)=>sectionHtml(q,i)).join('')}
 
-      <div class="merged-grand">
-        <div class="lbl">Combined Grand Total (${quotes.length} projects)</div>
-        <div class="val">${fmtINR2(combinedGrandTotal)}</div>
-      </div>
+      <table class="merged-grand">
+        <tr class="grand"><td>Combined Grand Total (${quotes.length} projects)</td><td>${fmtINR2(combinedGrandTotal)}</td></tr>
+        ${combinedCollected > 0 ? `<tr><td>Total Payments Received</td><td>${fmtINR2(combinedCollected)}</td></tr>` : ''}
+        <tr class="due"><td><b>Total Pending</b></td><td><b>${fmtINR2(combinedPending)}</b></td></tr>
+      </table>
 
       <div class="print-foot">
         <div>
