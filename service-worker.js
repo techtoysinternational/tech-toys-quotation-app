@@ -5,7 +5,7 @@
 //
 // Bump CACHE_VERSION whenever you want all installed PWAs to drop their
 // caches and re-fetch on next visit.
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = `techtoys-${CACHE_VERSION}`;
 const APP_SHELL = [
   './',

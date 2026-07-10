@@ -463,6 +463,13 @@ function initCloudSync(){
     // Real-time listener: every device receives the same DB automatically.
     if(window.__techToysCloudUnsub) window.__techToysCloudUnsub();
     window.__techToysCloudUnsub = ref.onSnapshot(doc=>{
+      // Our own writes echo back instantly with hasPendingWrites=true.
+      // Importing that echo would swap DB and re-render mid-edit, wiping
+      // anything the user has typed since the save. Ignore it — the data
+      // is already ours.
+      if(CLOUD_READY && doc.metadata && doc.metadata.hasPendingWrites){
+        return;
+      }
       if(doc.exists && doc.data() && doc.data().db){
         const remoteDB = doc.data().db;
         const remoteUpdated = remoteDB.updated || doc.data().updated_iso || '';
@@ -477,10 +484,18 @@ function initCloudSync(){
         DB = remoteDB;
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(e){}
         CLOUD_IMPORTING = false;
+        const wasReady = CLOUD_READY;
         CLOUD_READY = true;
         CLOUD_LOADING = false;
         CLOUD_LAST_SAVE = remoteUpdated;
         cloudStatusText('☁ Live sync active');
+        // A genuine remote change while the user is mid-edit in the quote
+        // editor must not rebuild the form under them (editingQuote is a
+        // detached copy; Save upserts it by id into whatever DB is current).
+        if(wasReady && (CURRENT_VIEW==='new-quote' || CURRENT_VIEW==='edit-quote')){
+          cloudStatusText('☁ Synced (finish editing to see remote changes)');
+          return;
+        }
         renderAfterCloudLoad();
       } else {
         CLOUD_READY = true;
@@ -512,12 +527,16 @@ function renderAfterCloudLoad(){
 
 function queueCloudSave(immediate=false){
   if(CLOUD_IMPORTING || !DB) return;
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(e){}
+  // Every caller has already persisted DB to localStorage (via saveDB or the
+  // import path), so skip the second full-DB serialization per save.
   if(!CLOUD_READY || !CLOUD_DB) return;
   clearTimeout(CLOUD_SAVE_TIMER);
   const doSave = async ()=>{
     try{
       DB.updated = new Date().toISOString();
+      // Mark our own save BEFORE the write: the snapshot listener can fire
+      // with this write before set() resolves, and it must recognise it.
+      CLOUD_LAST_SAVE = DB.updated;
       const payload = JSON.parse(JSON.stringify(DB));
       await CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC).set({
         db: payload,
@@ -525,7 +544,6 @@ function queueCloudSave(immediate=false){
         updated_iso: DB.updated,
         client_hint: navigator.userAgent || 'browser'
       }, { merge: true });
-      CLOUD_LAST_SAVE = DB.updated;
       cloudStatusText('☁ Saved to cloud');
     }catch(err){
       console.error('Cloud save failed:', err);
@@ -586,6 +604,7 @@ function addSnapshot(label, auto){
   };
   snaps.unshift(snap);
   persistSnapshots(snaps);
+  try{ localStorage.setItem(LAST_SNAP_DATE_KEY, snap.created.slice(0,10)); }catch(e){}
   return snap;
 }
 function deleteSnapshot(id){
@@ -610,12 +629,20 @@ function lastSnapshot(){
   return snaps[0] || null;
 }
 let _suppressAutoSnap = false;
+const LAST_SNAP_DATE_KEY = 'techToys_lastSnapDate';
 function maybeAutoSnapshot(){
   if(_suppressAutoSnap) return;
-  const last = lastSnapshot();
   const todayStr = new Date().toISOString().slice(0,10);
+  // Cheap date-key check first — parsing the full snapshot store (up to 20
+  // deep copies of DB) on every save froze the UI, worst on mobile.
+  let lastDate = localStorage.getItem(LAST_SNAP_DATE_KEY);
+  if(!lastDate){
+    const last = lastSnapshot();
+    lastDate = last ? last.created.slice(0,10) : '';
+    if(lastDate) try{ localStorage.setItem(LAST_SNAP_DATE_KEY, lastDate); }catch(e){}
+  }
   // Auto-snapshot once per calendar day
-  if(!last || last.created.slice(0,10) !== todayStr){
+  if(lastDate !== todayStr){
     try { addSnapshot('Auto-save (first edit of the day)', true); }
     catch(e){ console.warn('snapshot failed', e); }
   }
@@ -3812,11 +3839,15 @@ function printRental(id){
   const r = DB.rentals.find(x=>x.id===id);
   if(!r) return;
   // Capture any unsaved edits still sitting in the form before printing,
-  // so the PDF always matches what's on screen.
+  // so the PDF always matches what's on screen. Only persist when something
+  // actually changed — saveDB is not free and would delay the print dialog.
   if(document.getElementById('rd_date')){
+    const before = JSON.stringify(r);
     collectRentalForm(r);
-    r.updated = new Date().toISOString();
-    saveDB();
+    if(JSON.stringify(r) !== before){
+      r.updated = new Date().toISOString();
+      saveDB();
+    }
   }
   const c = DB.company;
   const total = rentalTotal(r);
