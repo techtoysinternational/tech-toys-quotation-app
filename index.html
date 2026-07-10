@@ -3669,6 +3669,7 @@ function renderRentalDetail(id){
       </div>
       <div class="page-actions">
         <button class="btn" onclick="navigate('rentals')">← Back</button>
+        <button class="btn" onclick="printRental('${r.id}')">🖨 Print / Save PDF</button>
         <button class="btn btn-danger" onclick="deleteRental('${r.id}')">🗑 Delete</button>
         <button class="btn btn-primary" onclick="saveRental('${r.id}')">💾 Save</button>
       </div>
@@ -3761,14 +3762,9 @@ function renderRentalDetail(id){
   });
 }
 
-function saveRental(id){
-  // Explicit Save button handler. Pulls current values from every input
-  // on the page, writes to DB, then re-renders so totals refresh.
-  const r = DB.rentals.find(x=>x.id===id);
-  if(!r) return;
-  ensureRentals();
-
-  // Metadata fields
+function collectRentalForm(r){
+  // Pulls current values from every input on the rental detail page into r.
+  // Safe to call when the form isn't on screen (all lookups null-guard).
   const fields = {
     event_date: 'rd_date',
     event_manager: 'rd_mgr',
@@ -3794,11 +3790,144 @@ function saveRental(id){
     if(field==='qty' || field==='rate') val = +val || 0;
     r.items[idx][field] = val;
   });
+}
+
+function saveRental(id){
+  // Explicit Save button handler. Pulls current values from every input
+  // on the page, writes to DB, then re-renders so totals refresh.
+  const r = DB.rentals.find(x=>x.id===id);
+  if(!r) return;
+  ensureRentals();
+
+  collectRentalForm(r);
 
   r.updated = new Date().toISOString();
   saveDB();
   toast('Rental saved');
   renderRentalDetail(r.id);
+}
+
+function printRental(id){
+  ensureRentals();
+  const r = DB.rentals.find(x=>x.id===id);
+  if(!r) return;
+  // Capture any unsaved edits still sitting in the form before printing,
+  // so the PDF always matches what's on screen.
+  if(document.getElementById('rd_date')){
+    collectRentalForm(r);
+    r.updated = new Date().toISOString();
+    saveDB();
+  }
+  const c = DB.company;
+  const total = rentalTotal(r);
+  const adv = +r.advance || 0;
+  const pending = rentalPending(r);
+  const hasItems = (r.items||[]).length > 0;
+  const statusColor = r.status==='Done' ? '#10b981' : r.status==='Cancelled' ? '#ef4444' : '#ff7a2f';
+
+  const itemRows = hasItems
+    ? r.items.map((it,i)=>`
+        <tr>
+          <td>${i+1}</td>
+          <td>
+            <div class="item-make">${escapeHTML(it.make||'')}</div>
+            <div class="item-desc">${escapeHTML(it.desc||'')}</div>
+          </td>
+          <td class="num">${fmtNum(it.qty)}</td>
+          <td class="num">${fmtINR2(it.rate)}</td>
+          <td class="num"><b>${fmtINR2((it.qty||0)*(it.rate||0))}</b></td>
+        </tr>
+      `).join('')
+    : `<tr>
+        <td>1</td>
+        <td><div class="item-make">Rental services</div><div class="item-desc">Equipment rental for event, as agreed</div></td>
+        <td class="num">1</td>
+        <td class="num">${fmtINR2(total)}</td>
+        <td class="num"><b>${fmtINR2(total)}</b></td>
+      </tr>`;
+
+  const html = `
+    <div class="print-page">
+      <div class="print-header">
+        <div>
+          <div class="print-brand">${escapeHTML(c.name)}</div>
+          <div class="print-tag">${escapeHTML(c.tagline||'')}</div>
+          <div style="font-size:9pt;color:#666;margin-top:8px">
+            ${escapeHTML(c.address_l1||'')}, ${escapeHTML(c.address_l2||'')}<br>
+            GSTIN: ${escapeHTML(c.gstin||'')} · PAN: ${escapeHTML(c.pan||'')} · State: ${escapeHTML(c.state||'')} (${escapeHTML(c.state_code||'')})<br>
+            ${escapeHTML(c.email||'')} · ${escapeHTML(c.phone||'')}
+          </div>
+        </div>
+        <div class="print-meta">
+          <div style="font-size:14pt;font-weight:700;color:#1a1a1a;margin-bottom:4px">RENTAL QUOTATION</div>
+          <div class="pi">${escapeHTML(r.id)}</div>
+          <div style="margin-top:6px">Event Date: <b>${fmtDate(r.event_date)}</b></div>
+        </div>
+      </div>
+
+      <div class="print-cust">
+        <div class="print-cust-block">
+          <div class="print-section-title">Rental For</div>
+          <div class="name">${escapeHTML(r.event_manager||'')}</div>
+          ${r.venue ? `<div class="addr"><b>Venue:</b> ${escapeHTML(r.venue)}</div>` : ''}
+          ${r.reference ? `<div class="addr" style="margin-top:3px"><b>Reference:</b> ${escapeHTML(r.reference)}</div>` : ''}
+          ${r.notes ? `<div class="addr" style="margin-top:6px;font-style:italic">${escapeHTML(r.notes)}</div>` : ''}
+        </div>
+        <div class="print-cust-block" style="text-align:right">
+          <div class="print-section-title">Status</div>
+          <div class="name" style="color:${statusColor}">${escapeHTML(r.status||'Upcoming')}</div>
+        </div>
+      </div>
+
+      <table class="print-tbl">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Item</th>
+            <th style="width:60px" class="num">Qty</th>
+            <th style="width:100px" class="num">Rate</th>
+            <th style="width:110px" class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+
+      <table class="print-totals">
+        ${adv > 0 ? `
+          <tr><td>Total Amount</td><td>${fmtINR2(total)}</td></tr>
+          <tr><td>Advance Received</td><td>− ${fmtINR2(adv)}</td></tr>
+          <tr class="grand"><td>Balance Due</td><td>${fmtINR2(pending)}</td></tr>
+        ` : `
+          <tr class="grand"><td>Total Amount</td><td>${fmtINR2(total)}</td></tr>
+        `}
+      </table>
+
+      <div class="print-foot">
+        <div>
+          <div class="lbl">Bank Details</div>
+          <div class="bank-line">${escapeHTML(c.bank_name||'')} · ${escapeHTML(c.bank_branch||'')}</div>
+          <div class="bank-line">A/C Name: ${escapeHTML(c.bank_ac_name||'')}</div>
+          <div class="bank-line">A/C No: <b>${escapeHTML(c.bank_ac||'')}</b></div>
+          <div class="bank-line">IFSC: <b>${escapeHTML(c.bank_ifsc||'')}</b> · MICR: ${escapeHTML(c.bank_micr||'')}</div>
+        </div>
+        <div>
+          <div class="lbl">Terms</div>
+          ${(()=>{
+            const txt = (c.default_terms && c.default_terms.trim()) || BUILTIN_DEFAULT_TERMS;
+            return txt.split('\n').map(line=>`<div class="terms-line">${escapeHTML(line)}</div>`).join('');
+          })()}
+        </div>
+      </div>
+
+      <div class="print-sign">
+        <div class="print-sign-line">For ${escapeHTML(c.name)}<br><b>${escapeHTML(c.contact_person||'')}</b></div>
+      </div>
+      <div class="print-thanks">Thank you for your business.</div>
+    </div>
+  `;
+
+  document.getElementById('print-area').innerHTML = html;
+  setTimeout(()=>{ window.print(); }, 100);
 }
 
 function updateRentalField(id, field, val){
