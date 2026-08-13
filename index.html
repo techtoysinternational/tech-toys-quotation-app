@@ -213,6 +213,55 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .merged-grand tr.grand td{color:#ff7a2f;font-weight:700;font-size:11pt;text-transform:uppercase;letter-spacing:.5px;padding-bottom:8px;border-bottom:1px solid #ffd9b5}
 .merged-grand tr.grand td:last-child{font-size:16pt;color:#1a1a1a;text-transform:none;letter-spacing:0}
 .merged-grand tr.due td:last-child{color:#b45309}
+
+/* Composite estimate — proforma-style print layout (A + B + C sections) */
+.ce-title{text-align:center;font-weight:800;font-size:13.5pt;letter-spacing:1.2px;text-transform:uppercase;border:1px solid #333;padding:6px;background:#f2f2f2;color:#1a1a1a}
+.ce-top{display:grid;grid-template-columns:1.25fr 1fr;border:1px solid #333;border-top:none;font-size:8.8pt;color:#333}
+.ce-top .cell{padding:9px 11px}
+.ce-top .cell + .cell{border-left:1px solid #333}
+.ce-top .co-name{font-size:13pt;font-weight:800;color:#1a1a1a;letter-spacing:-.2px;line-height:1.1;margin-bottom:3px}
+.ce-top .lbl{font-weight:700;color:#1a1a1a}
+.ce-top .ln{line-height:1.4}
+.ce-proj{border:1px solid #333;border-top:none;padding:8px 11px;font-size:12pt;font-weight:800;text-transform:uppercase;text-align:center;letter-spacing:.6px;color:#1a1a1a}
+.ce-tbl{width:100%;border-collapse:collapse;font-size:8.8pt;margin-top:14px}
+.ce-tbl th{background:#1a1a1a;color:#fff;border:1px solid #1a1a1a;padding:6px;font-size:8.2pt;font-weight:700;text-transform:uppercase;letter-spacing:.3px;text-align:center}
+.ce-tbl td{border:1px solid #bbb;padding:5px 6px;vertical-align:top}
+.ce-tbl td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ce-tbl td.ctr{text-align:center}
+.ce-tbl .it-make{font-weight:600;color:#1a1a1a}
+.ce-tbl .it-desc{color:#666;font-size:8.2pt;margin-top:1px}
+.ce-tbl tr.ce-sec td{background:#ededed;font-weight:800;text-transform:uppercase;color:#1a1a1a;font-size:9.5pt;letter-spacing:.4px;border-top:2px solid #1a1a1a}
+.ce-tbl tr.ce-sub td{background:#fafafa;font-weight:700}
+.ce-tbl tr.ce-sub td.lbl{text-align:right;text-transform:uppercase;letter-spacing:.4px;font-size:8.4pt;color:#444}
+.ce-tbl tr.ce-note td{background:#fdece1;text-align:center;font-style:italic;color:#7a3b12}
+.ce-tbl tr.ce-tot td{font-weight:700;background:#f6f6f6}
+.ce-tbl tr.ce-disc td{font-weight:700;color:#b45309}
+.ce-tbl tr.ce-grand td{background:#fff2e6;font-weight:800;font-size:12.5pt;color:#1a1a1a;border-top:2px solid #ff7a2f;border-bottom:2px solid #ff7a2f}
+.ce-tbl tr{page-break-inside:avoid}
+.ce-tbl tr.ce-sec{page-break-after:avoid}
+.ce-boxes{display:grid;grid-template-columns:1.15fr 1fr;border:1px solid #333;margin-top:12px;font-size:8.8pt}
+.ce-boxes .bx{padding:9px 11px}
+.ce-boxes .bx + .bx{border-left:1px solid #333}
+.ce-boxes .bx .lbl{font-weight:700;color:#1a1a1a;margin-bottom:4px;text-transform:uppercase;font-size:8.4pt;letter-spacing:.4px}
+.ce-boxes .bx .ln{line-height:1.5}
+.ce-note-box{font-weight:700;text-transform:uppercase;text-align:center;color:#1a1a1a;line-height:1.4}
+.ce-terms{margin-top:12px;font-size:8.8pt;color:#333}
+.ce-terms .hd{font-weight:800;color:#1a1a1a;text-decoration:underline;margin-bottom:5px;font-size:9.2pt}
+.ce-terms .ln{padding-left:16px;text-indent:-16px;line-height:1.5}
+.ce-contact{margin-top:10px;font-size:9pt;font-weight:700;color:#1a1a1a;line-height:1.5}
+.ce-foot{margin-top:14px;border-top:1px solid #333;padding-top:6px;text-align:center;font-size:8.4pt;color:#666;font-style:italic}
+
+/* Composite estimate builder (screen) */
+.ce-sec-card{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:10px;background:var(--panel2)}
+.ce-sec-card .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ce-sec-card .meta{font-size:12px;color:var(--muted)}
+.ce-sec-card.missing{border-color:var(--red);background:var(--red-dim)}
+.ce-letter{width:28px;height:28px;border-radius:7px;background:var(--accent);color:#0b0e14;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0}
+.ce-pick-row{display:flex;gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px}
+.ce-pick-row:last-child{border-bottom:none}
+.ce-pick-row:hover{background:var(--panel2)}
+.ce-pick-row .grow{flex:1;min-width:0}
+.ce-pick-row .amt{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 .print-watermark{position:absolute;bottom:8mm;left:0;right:0;text-align:center;font-size:8pt;color:#bbb;letter-spacing:1px}
 
 /* responsive */
@@ -377,6 +426,11 @@ function loadDB(){
       // Ensure rentals array exists
       if(!Array.isArray(DB.rentals)){
         DB.rentals = [];
+        _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
+      }
+      // Ensure composite estimates array exists
+      if(!Array.isArray(DB.estimates)){
+        DB.estimates = [];
         _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
       }
       // Ensure users array exists with a default admin matching the legacy single password
@@ -752,6 +806,7 @@ function changeFY(val){
   // Re-render whichever filterable view we're on
   if(CURRENT_VIEW==='dashboard') renderDashboard();
   else if(CURRENT_VIEW==='quotes') renderQuotes();
+  else if(CURRENT_VIEW==='estimates') renderEstimates();
   else if(CURRENT_VIEW==='clients') renderClients();
   else if(CURRENT_VIEW==='client') {
     const id = (location.hash.split('/')[1])||'';
@@ -891,6 +946,7 @@ const NAV = [
   {id:'leads', label:'Leads', ico:'🎯'},
   {id:'quotes', label:'Quotations', ico:'📋'},
   {id:'new-quote', label:'New Quote', ico:'➕'},
+  {id:'estimates', label:'Estimates', ico:'🧾'},
   {id:'rentals', label:'Rentals', ico:'🎪'},
   {id:'clients', label:'Clients', ico:'👥'},
   {id:'products', label:'Products', ico:'📦'},
@@ -930,6 +986,8 @@ function navigate(view, params){
   else if(view==='new-quote') renderNewQuote();
   else if(view==='edit-quote') renderNewQuote(params);
   else if(view==='leads') renderLeads();
+  else if(view==='estimates') renderEstimates();
+  else if(view==='estimate') renderEstimateDetail(params);
   else if(view==='rentals') renderRentals();
   else if(view==='rental') renderRentalDetail(params);
   else if(view==='products') renderProducts();
@@ -1262,7 +1320,8 @@ function renderQuotes(){
         </div>
       </div>
       <div class="page-actions">
-        ${selectedCount >= 2 ? `<button class="btn btn-primary" onclick="mergeSelectedQuotes()">🗂️ Merge ${selectedCount} into one PDF</button>` : ''}
+        ${selectedCount >= 2 ? `<button class="btn btn-primary" onclick="composeEstimateFromSelection()">🧾 Compose estimate (${selectedCount})</button>` : ''}
+        ${selectedCount >= 2 ? `<button class="btn" onclick="mergeSelectedQuotes()">🗂️ Merge ${selectedCount} into one PDF</button>` : ''}
         ${selectedCount >= 1 ? `<button class="btn" onclick="clearQuoteSelection()">Clear (${selectedCount})</button>` : ''}
         <button class="btn btn-primary" onclick="navigate('new-quote')">➕ New Quote</button>
       </div>
@@ -3090,6 +3149,712 @@ function printMergedQuote(quotes){
         <div class="print-sign-line">For ${escapeHTML(c.name)}<br><b>${escapeHTML(c.contact_person||'')}</b></div>
       </div>
       <div class="print-thanks">Thank you for your business.</div>
+    </div>
+  `;
+
+  document.getElementById('print-area').innerHTML = html;
+  setTimeout(()=>{ window.print(); }, 100);
+}
+
+/* ============================================================
+   COMPOSITE ESTIMATES: club 2+ quotations into one estimate
+   Each quotation becomes a lettered section (A, B, C...). Sections stay
+   LINKED to their source quote, so editing a quote updates the estimate.
+   ============================================================ */
+const ESTIMATE_STATUSES = ['Draft','Sent','Won','Lost'];
+const ESTIMATE_DOC_TITLES = ['PROFORMA INVOICE','COMPOSITE ESTIMATE','QUOTATION'];
+const SECTION_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const BUILTIN_ESTIMATE_NOTE = 'ALL WOODEN, GLASS, ALUMINIUM AND IRON STRUCTURE SHALL BE CHARGED AS PER ACTUAL. ALL ELECTRICAL POINTS TO BE PROVIDED BY THE CLIENT.';
+const BUILTIN_PAYMENT_TERMS = '80% ADVANCE PAYMENT\n10% DURING INSTALL\n10% AT THE TIME OF HANDOVER';
+const BUILTIN_ESTIMATE_TERMS = `All Prices are FOR Kolkata
+All Prices are excluding Taxes and Freight.
+Supply, Installation, Testing and commissioning would be in the scope of TECH TOYS
+Warranty 12 months from the date of Supply as per the Policy and terms applicable during supply
+Delivery 1 week from the date of confirmed order and advance`;
+
+function ensureEstimates(){ if(!Array.isArray(DB.estimates)) DB.estimates = []; }
+
+function nextEstimateId(){
+  let n = 1;
+  while((DB.estimates||[]).find(e=>e.id===`E${String(n).padStart(4,'0')}`)) n++;
+  return `E${String(n).padStart(4,'0')}`;
+}
+function nextEstimateNo(){
+  const seq = (DB.next_est_seq || 0) + 1;
+  DB.next_est_seq = seq;
+  const yy = String(new Date().getFullYear()).slice(-2);
+  return `EST-${yy}-${String(seq).padStart(2,'0')}`;
+}
+
+/* Resolve each section against its live source quote. */
+function estimateSections(e){
+  return (e.sections||[]).map((s,i)=>{
+    const q = (DB.quotes||[]).find(x=>x.id===s.quote_id) || null;
+    const items = q ? (q.items||[]) : [];
+    const gross = items.reduce((sum,it)=>sum + (+it.qty||0)*(+it.price||0), 0);
+    const disc = q ? (+q.discount||0) : 0;
+    return {
+      letter: SECTION_LETTERS[i] || String(i+1),
+      label: s.label || (q ? (q.project_name || q.client || q.pi_no || '') : ''),
+      quote_id: s.quote_id,
+      quote: q,
+      items, gross, disc,
+      total: Math.max(0, gross - disc),
+      missing: !q,
+    };
+  });
+}
+function estimateSubtotal(e){ return estimateSections(e).reduce((s,x)=>s+x.total, 0); }
+function estimateDiscountAmt(e){
+  const sub = estimateSubtotal(e);
+  const amt = (e.discount_mode === 'AMT') ? (+e.discount_amt||0) : sub * (+e.discount_pct||0)/100;
+  return Math.min(sub, Math.max(0, amt));
+}
+function estimateAfterDiscount(e){ return Math.max(0, estimateSubtotal(e) - estimateDiscountAmt(e)); }
+function estimateTax(e){
+  if(e.tax_type === 'SGST_CGST' || e.tax_type === 'IGST') return estimateAfterDiscount(e) * 0.18;
+  return 0;
+}
+function estimateTotal(e){ return estimateAfterDiscount(e) + estimateTax(e); }
+function estimateGrandLabel(e){
+  const secs = estimateSections(e);
+  return secs.length ? secs.map(s=>s.letter).join('+') : 'TOTAL';
+}
+function estimateClientName(e){
+  const c = e.client_id ? (DB.clients||[]).find(x=>x.id===e.client_id) : null;
+  return c ? c.name : (e.client||'');
+}
+function estimateFY(e){
+  if(!e || !e.date) return null;
+  const d = new Date(e.date);
+  if(isNaN(d)) return null;
+  const y = d.getFullYear(), m = d.getMonth();
+  const fyStart = m >= 3 ? y : y - 1;
+  return `FY ${fyStart}-${String(fyStart+1).slice(-2)}`;
+}
+function filterEstimatesByFY(list){
+  if(CURRENT_FY === 'all') return list;
+  const target = activeFY();
+  return list.filter(e => estimateFY(e) === target);
+}
+
+/* -------- Estimates list -------- */
+let estimatesFilter = {q:'', status:''};
+
+function renderEstimates(){
+  ensureEstimates();
+  let es = filterEstimatesByFY([...DB.estimates]);
+  const totalInFY = es.length;
+  if(estimatesFilter.q){
+    const t = estimatesFilter.q.toLowerCase();
+    es = es.filter(e => (estimateClientName(e)+' '+(e.project_name||'')+' '+(e.est_no||'')+' '+(e.notes||'')).toLowerCase().includes(t));
+  }
+  if(estimatesFilter.status) es = es.filter(e => e.status === estimatesFilter.status);
+  es.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const totalVal = es.reduce((s,e)=>s+estimateTotal(e), 0);
+
+  document.getElementById('mainView').innerHTML = `
+    <div class="page-head">
+      <div>
+        <button class="btn btn-icon mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+        <div style="display:inline-block;vertical-align:middle">
+          <div class="page-title">Estimates <span class="fy-badge">${escapeHTML(fyLabel())}</span></div>
+          <div class="page-sub">${es.length} of ${totalInFY} ${CURRENT_FY==='all'?'(all time)':'in '+escapeHTML(activeFY())} · ${fmtINR(totalVal)} total value</div>
+        </div>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="createEstimate()">➕ New Estimate</button>
+      </div>
+    </div>
+
+    <div class="card" style="background:var(--panel2);margin-bottom:16px">
+      <div style="font-size:13px;color:var(--muted);line-height:1.6">
+        <b style="color:var(--text)">Composite estimate</b> = two or more quotations clubbed into one document.
+        Each quotation becomes a lettered section (A, B, C...) with its own total, then one overall
+        discount and grand total across all of them. Sections stay linked to their quotations, so
+        editing a quotation updates the estimate automatically.
+      </div>
+    </div>
+
+    <div class="search-row">
+      <input id="eSearch" placeholder="Search client, project or estimate number..." value="${escapeHTML(estimatesFilter.q)}">
+      <select id="eStatus">
+        <option value="">All statuses</option>
+        ${ESTIMATE_STATUSES.map(s=>`<option value="${s}" ${estimatesFilter.status===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="card" style="padding:0">
+      <table class="tbl tbl-clickable">
+        <thead><tr>
+          <th>Estimate No.</th><th>Client</th><th>Project</th><th>Date</th><th>Sections</th><th>Status</th>
+          <th class="num">Sections total</th><th class="num">Discount</th><th class="num">Grand Total</th>
+        </tr></thead>
+        <tbody>
+          ${es.length===0 ? '<tr><td colspan="9" class="empty">No estimates yet. Click <b>+ New Estimate</b>, or tick 2+ quotations on the Quotations page and use <b>Compose estimate</b>.</td></tr>' :
+            es.map(e=>{
+              const secs = estimateSections(e);
+              const disc = estimateDiscountAmt(e);
+              const anyMissing = secs.some(s=>s.missing);
+              return `<tr onclick="navigate('estimate','${e.id}')">
+                <td><b>${escapeHTML(e.est_no||e.id)}</b>${anyMissing?' <span class="tag" style="color:var(--red)">check sections</span>':''}</td>
+                <td>${escapeHTML(estimateClientName(e)||'—')}</td>
+                <td class="muted">${escapeHTML(e.project_name||'—')}</td>
+                <td class="muted">${fmtDate(e.date)}</td>
+                <td class="muted">${secs.length} (${secs.map(s=>s.letter).join('+')||'—'})</td>
+                <td><span class="pill pill-${(e.status||'Draft').toLowerCase()}">${e.status||'Draft'}</span></td>
+                <td class="num">${fmtINR(estimateSubtotal(e))}</td>
+                <td class="num" style="color:${disc>0?'var(--amber)':'var(--muted)'}">${disc>0?'− '+fmtINR(disc):'—'}</td>
+                <td class="num"><b>${fmtINR(estimateTotal(e))}</b></td>
+              </tr>`;
+            }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  document.getElementById('eSearch').oninput = ev=>{ estimatesFilter.q = ev.target.value; renderEstimates(); };
+  document.getElementById('eStatus').onchange = ev=>{ estimatesFilter.status = ev.target.value; renderEstimates(); };
+}
+
+/* -------- Create -------- */
+function createEstimate(quoteIds){
+  ensureEstimates();
+  const ids = Array.isArray(quoteIds) ? quoteIds : [];
+  const quotes = ids.map(id => (DB.quotes||[]).find(q=>q.id===id)).filter(Boolean);
+  quotes.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const first = quotes[0];
+
+  const e = {
+    id: nextEstimateId(),
+    est_no: nextEstimateNo(),
+    doc_title: 'PROFORMA INVOICE',
+    date: today(),
+    client_id: first ? (first.client_id||'') : '',
+    client: first && !first.client_id ? (first.client||'') : '',
+    project_name: '',
+    sections: quotes.map(q => ({ quote_id: q.id, label: (q.project_name || q.client || q.pi_no || '').toUpperCase() })),
+    discount_mode: 'PCT',
+    discount_pct: 0,
+    discount_amt: 0,
+    tax_type: 'NONE',
+    support_note: '',
+    note_box: BUILTIN_ESTIMATE_NOTE,
+    payment_terms: BUILTIN_PAYMENT_TERMS,
+    terms: BUILTIN_ESTIMATE_TERMS,
+    notes: '',
+    status: 'Draft',
+    created: new Date().toISOString(),
+    updated: new Date().toISOString(),
+  };
+  DB.estimates.push(e);
+  saveDB();
+  navigate('estimate', e.id);
+}
+
+/* Build an estimate straight from the ticked quotations on the Quotations page. */
+function composeEstimateFromSelection(){
+  const ids = Array.from(selectedQuoteIds);
+  if(ids.length < 2){ alert('Tick at least 2 quotations to compose an estimate.'); return; }
+  const quotes = ids.map(id => DB.quotes.find(q=>q.id===id)).filter(Boolean);
+  if(quotes.length < 2){ alert('Some selected quotations no longer exist.'); return; }
+  const clientIds = new Set(quotes.map(q => q.client_id).filter(Boolean));
+  const looseClients = new Set(quotes.filter(q => !q.client_id).map(q => (q.client||'').toLowerCase()));
+  if(clientIds.size > 1 || (clientIds.size === 1 && looseClients.size > 0) || (clientIds.size === 0 && looseClients.size > 1)){
+    const names = [...new Set(quotes.map(q => {
+      const c = q.client_id ? (DB.clients||[]).find(x=>x.id===q.client_id) : null;
+      return c ? c.name : (q.client||'(no client)');
+    }))];
+    if(!confirm(`These quotations belong to different clients:\n\n${names.join('\n')}\n\nCompose them into one estimate anyway?`)) return;
+  }
+  clearQuoteSelection();
+  createEstimate(quotes.map(q=>q.id));
+}
+
+/* -------- Estimate detail / builder -------- */
+function renderEstimateDetail(id){
+  ensureEstimates();
+  const e = (DB.estimates||[]).find(x=>x.id===id);
+  if(!e){
+    document.getElementById('mainView').innerHTML = '<div class="empty">Estimate not found.</div>';
+    return;
+  }
+  const secs = estimateSections(e);
+  const sub = estimateSubtotal(e);
+  const disc = estimateDiscountAmt(e);
+  const afterDisc = estimateAfterDiscount(e);
+  const tax = estimateTax(e);
+  const total = estimateTotal(e);
+  const clients = [...(DB.clients||[])].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+
+  document.getElementById('mainView').innerHTML = `
+    <div class="page-head">
+      <div>
+        <button class="btn btn-icon mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+        <div style="display:inline-block;vertical-align:middle">
+          <div class="page-title">${escapeHTML(e.est_no||e.id)} <span class="tag" style="font-size:11px;font-weight:600">${secs.length} section${secs.length===1?'':'s'}</span></div>
+          <div class="page-sub">${escapeHTML(estimateClientName(e)||'(no client)')}${e.project_name?' · '+escapeHTML(e.project_name):''} · ${fmtDate(e.date)} · <b>${fmtINR(total)}</b></div>
+        </div>
+      </div>
+      <div class="page-actions">
+        <button class="btn" onclick="navigate('estimates')">← Back</button>
+        <button class="btn" onclick="duplicateEstimate('${e.id}')">⧉ Duplicate</button>
+        <button class="btn" onclick="printEstimate('${e.id}')">🖨 Print / Save PDF</button>
+        <button class="btn btn-danger" onclick="deleteEstimate('${e.id}')">🗑 Delete</button>
+        <button class="btn btn-primary" onclick="saveEstimate('${e.id}')">💾 Save</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Estimate details</div></div>
+      <div class="form-grid">
+        <div class="field"><label>Document title</label>
+          <select id="ed_doc_title" onchange="updateEstimateField('${e.id}','doc_title',this.value)">
+            ${ESTIMATE_DOC_TITLES.map(t=>`<option value="${t}" ${(e.doc_title||'PROFORMA INVOICE')===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Estimate / Invoice No.</label><input id="ed_no" value="${escapeHTML(e.est_no||'')}" placeholder="e.g. PI-26-19"></div>
+        <div class="field"><label>Date</label><input id="ed_date" type="date" value="${escapeHTML(e.date||'')}"></div>
+        <div class="field"><label>Status</label>
+          <select id="ed_status" onchange="updateEstimateField('${e.id}','status',this.value,true)">
+            ${ESTIMATE_STATUSES.map(s=>`<option value="${s}" ${(e.status||'Draft')===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Client</label>
+          <select id="ed_client_id" onchange="updateEstimateField('${e.id}','client_id',this.value,true)">
+            <option value="">(not linked, type the name below)</option>
+            ${clients.map(c=>`<option value="${c.id}" ${e.client_id===c.id?'selected':''}>${escapeHTML(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Client name (if not linked)</label><input id="ed_client" value="${escapeHTML(e.client||'')}" placeholder="Typed client name" ${e.client_id?'disabled style="opacity:.5"':''}></div>
+        <div class="field full"><label>Project / heading on the document</label><input id="ed_project" value="${escapeHTML(e.project_name||'')}" placeholder="e.g. HOTEL (appears as the banner under the company block)"></div>
+        <div class="field full"><label>Internal notes (not printed)</label><textarea id="ed_notes" rows="2" placeholder="Anything you want to remember about this estimate">${escapeHTML(e.notes||'')}</textarea></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Sections (one per quotation)</div>
+        <button class="btn btn-sm btn-primary" onclick="openEstimateQuotePicker('${e.id}')">+ Add quotation(s)</button>
+      </div>
+      ${secs.length === 0 ? `<div style="padding:24px;text-align:center;color:var(--muted)">No quotations added yet. Click <b>+ Add quotation(s)</b> to club two or more together.</div>` :
+        secs.map((s,i)=>`
+        <div class="ce-sec-card ${s.missing?'missing':''}">
+          <div class="hd">
+            <div class="ce-letter">${s.letter}</div>
+            <input style="flex:1;min-width:200px" data-secidx="${i}" value="${escapeHTML(s.label)}" placeholder="Section name, e.g. NIGHT CLUB">
+            <div class="amt" style="font-weight:700;font-variant-numeric:tabular-nums;min-width:110px;text-align:right">${fmtINR(s.total)}</div>
+            <button class="btn btn-icon btn-ghost" title="Move up" ${i===0?'disabled':''} onclick="moveEstimateSection('${e.id}',${i},-1)">↑</button>
+            <button class="btn btn-icon btn-ghost" title="Move down" ${i===secs.length-1?'disabled':''} onclick="moveEstimateSection('${e.id}',${i},1)">↓</button>
+            <button class="btn btn-icon btn-ghost" title="Remove section" onclick="removeEstimateSection('${e.id}',${i})">×</button>
+          </div>
+          <div class="meta" style="margin-top:7px">
+            ${s.missing
+              ? `<span style="color:var(--red)">⚠ Source quotation <b>${escapeHTML(s.quote_id||'')}</b> no longer exists, so remove this section.</span>`
+              : `From <a href="#quote/${s.quote.id}" onclick="event.preventDefault();navigate('quote','${s.quote.id}')"><b>${escapeHTML(s.quote.pi_no||s.quote.id)}</b></a>
+                 · ${escapeHTML(s.quote.project_name||s.quote.client||'')} · ${s.items.length} item(s) · ${fmtDate(s.quote.date)}
+                 ${s.disc>0?` · <span style="color:var(--amber)">quotation discount − ${fmtINR(s.disc)} applied</span>`:''}`}
+          </div>
+        </div>`).join('')}
+      ${secs.length === 1 ? `<div style="color:var(--amber);font-size:12px;margin-top:4px">Add at least one more quotation — a composite estimate needs 2 or more.</div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Discount, GST &amp; totals</div></div>
+      <div class="form-grid">
+        <div class="field"><label>Overall discount</label>
+          <select id="ed_disc_mode" onchange="updateEstimateField('${e.id}','discount_mode',this.value,true)">
+            <option value="PCT" ${(e.discount_mode||'PCT')==='PCT'?'selected':''}>Percentage of total</option>
+            <option value="AMT" ${e.discount_mode==='AMT'?'selected':''}>Flat amount (₹)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>${(e.discount_mode||'PCT')==='PCT'?'Discount %':'Discount amount (₹)'}</label>
+          ${(e.discount_mode||'PCT')==='PCT'
+            ? `<input id="ed_disc_val" type="number" step="0.01" min="0" max="100" value="${e.discount_pct||0}" onchange="updateEstimateField('${e.id}','discount_pct',+this.value||0,true)">`
+            : `<input id="ed_disc_val" type="number" step="0.01" min="0" value="${e.discount_amt||0}" onchange="updateEstimateField('${e.id}','discount_amt',+this.value||0,true)">`}
+          <div class="field-help">Applied to the combined total of all sections.</div>
+        </div>
+        <div class="field"><label>GST</label>
+          <select id="ed_tax" onchange="updateEstimateField('${e.id}','tax_type',this.value,true)">
+            <option value="NONE" ${(e.tax_type||'NONE')==='NONE'?'selected':''}>No GST (prices exclude taxes)</option>
+            <option value="SGST_CGST" ${e.tax_type==='SGST_CGST'?'selected':''}>SGST 9% + CGST 9% (within West Bengal)</option>
+            <option value="IGST" ${e.tax_type==='IGST'?'selected':''}>IGST 18% (outside West Bengal)</option>
+          </select>
+        </div>
+        <div class="field"><label>Highlight note above the total (optional)</label><input id="ed_support" value="${escapeHTML(e.support_note||'')}" placeholder="e.g. Support required plain 19mm ply on the wall"></div>
+      </div>
+      <div class="totals">
+        ${secs.map(s=>`<div class="lbl">${s.letter}. ${escapeHTML(s.label||'(unnamed)')}</div><div class="val">${fmtINR(s.total)}</div>`).join('')}
+        <div class="lbl" style="border-top:1px solid var(--border);padding-top:8px">Total (${estimateGrandLabel(e)})</div><div class="val" style="border-top:1px solid var(--border);padding-top:8px">${fmtINR(sub)}</div>
+        ${disc>0?`<div class="lbl" style="color:var(--amber)">Less discount${(e.discount_mode||'PCT')==='PCT'?` @ ${(+e.discount_pct||0)}%`:''}</div><div class="val" style="color:var(--amber)">− ${fmtINR(disc)}</div>`:''}
+        ${disc>0?`<div class="lbl">After discount</div><div class="val">${fmtINR(afterDisc)}</div>`:''}
+        ${e.tax_type==='SGST_CGST'?`<div class="lbl">SGST 9%</div><div class="val">${fmtINR(afterDisc*0.09)}</div><div class="lbl">CGST 9%</div><div class="val">${fmtINR(afterDisc*0.09)}</div>`:''}
+        ${e.tax_type==='IGST'?`<div class="lbl">IGST 18%</div><div class="val">${fmtINR(tax)}</div>`:''}
+        <div class="lbl grand">Grand Total</div><div class="val grand">${fmtINR(total)}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Boxes &amp; terms printed on the document</div></div>
+      <div class="form-grid">
+        <div class="field"><label>Note box (left)</label><textarea id="ed_note_box" rows="4" placeholder="e.g. ALL WOODEN, GLASS, ALUMINIUM AND IRON STRUCTURE SHALL BE CHARGED AS PER ACTUAL...">${escapeHTML(e.note_box||'')}</textarea></div>
+        <div class="field"><label>Payment terms (right)</label><textarea id="ed_pay_terms" rows="4" placeholder="One per line, e.g.&#10;80% ADVANCE PAYMENT&#10;10% DURING INSTALL&#10;10% AT THE TIME OF HANDOVER">${escapeHTML(e.payment_terms||'')}</textarea></div>
+        <div class="field full"><label>Commercial terms &amp; conditions (numbered on the print, one per line)</label><textarea id="ed_terms" rows="6">${escapeHTML(e.terms||'')}</textarea></div>
+      </div>
+    </div>
+  `;
+
+  // Section label inputs: keep in memory as the user types, persist on blur
+  // (no re-render, so focus is never stolen mid-typing).
+  document.querySelectorAll('.ce-sec-card input[data-secidx]').forEach(inp=>{
+    inp.addEventListener('input', ev=>{
+      const idx = +ev.target.dataset.secidx;
+      if(e.sections[idx]) e.sections[idx].label = ev.target.value;
+    });
+    inp.addEventListener('blur', ()=>{
+      e.updated = new Date().toISOString();
+      saveDB();
+    });
+  });
+
+  // Persist every other field the moment it loses focus, so nothing is lost
+  // by navigating away without pressing Save. 'change' fires on blur only when
+  // the value actually changed, and there is no re-render, so focus is kept.
+  ['ed_no','ed_date','ed_project','ed_notes','ed_support','ed_note_box','ed_pay_terms','ed_terms','ed_client'].forEach(elId=>{
+    const el = document.getElementById(elId);
+    if(!el) return;
+    el.addEventListener('change', ()=>{
+      collectEstimateForm(e);
+      e.updated = new Date().toISOString();
+      saveDB();
+    });
+  });
+}
+
+/* Pulls every field on the builder page into the estimate object. */
+function collectEstimateForm(e){
+  const map = {
+    est_no: 'ed_no', date: 'ed_date', project_name: 'ed_project', notes: 'ed_notes',
+    support_note: 'ed_support', note_box: 'ed_note_box', payment_terms: 'ed_pay_terms', terms: 'ed_terms',
+  };
+  Object.entries(map).forEach(([key, elId])=>{
+    const el = document.getElementById(elId);
+    if(el) e[key] = el.value;
+  });
+  const clientEl = document.getElementById('ed_client');
+  if(clientEl && !clientEl.disabled) e.client = clientEl.value;
+  document.querySelectorAll('.ce-sec-card input[data-secidx]').forEach(inp=>{
+    const idx = +inp.dataset.secidx;
+    if(e.sections[idx]) e.sections[idx].label = inp.value;
+  });
+}
+
+function updateEstimateField(id, field, val, rerender){
+  const e = (DB.estimates||[]).find(x=>x.id===id);
+  if(!e) return;
+  collectEstimateForm(e);            // don't lose anything typed but not yet saved
+  e[field] = val;
+  if(field === 'client_id' && val) e.client = '';
+  e.updated = new Date().toISOString();
+  saveDB();
+  if(rerender) renderEstimateDetail(id); else toast('Saved');
+}
+
+function saveEstimate(id){
+  const e = (DB.estimates||[]).find(x=>x.id===id);
+  if(!e) return;
+  collectEstimateForm(e);
+  e.updated = new Date().toISOString();
+  saveDB();
+  toast('Estimate saved');
+  renderEstimateDetail(id);
+}
+
+function moveEstimateSection(id, idx, dir){
+  const e = (DB.estimates||[]).find(x=>x.id===id);
+  if(!e) return;
+  collectEstimateForm(e);
+  const j = idx + dir;
+  if(j < 0 || j >= e.sections.length) return;
+  const [moved] = e.sections.splice(idx, 1);
+  e.sections.splice(j, 0, moved);
+  e.updated = new Date().toISOString();
+  saveDB();
+  renderEstimateDetail(id);
+}
+
+function removeEstimateSection(id, idx){
+  const e = (DB.estimates||[]).find(x=>x.id===id);
+  if(!e) return;
+  collectEstimateForm(e);
+  const s = estimateSections(e)[idx];
+  if(!confirm(`Remove section ${s ? s.letter+'. '+(s.label||'') : ''} from this estimate?\n\nThe quotation itself is not deleted.`)) return;
+  e.sections.splice(idx, 1);
+  e.updated = new Date().toISOString();
+  saveDB();
+  toast('Section removed');
+  renderEstimateDetail(id);
+}
+
+function duplicateEstimate(id){
+  const src = (DB.estimates||[]).find(x=>x.id===id);
+  if(!src) return;
+  collectEstimateForm(src);
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = nextEstimateId();
+  copy.est_no = nextEstimateNo();
+  copy.date = today();
+  copy.status = 'Draft';
+  copy.created = copy.updated = new Date().toISOString();
+  DB.estimates.push(copy);
+  saveDB();
+  toast(`Duplicated as ${copy.est_no}`);
+  navigate('estimate', copy.id);
+}
+
+function deleteEstimate(id){
+  const e = (DB.estimates||[]).find(x=>x.id===id);
+  if(!e) return;
+  if(!confirm(`Delete estimate ${e.est_no||e.id}? This cannot be undone.\n\nThe quotations inside it are NOT deleted.`)) return;
+  DB.estimates = DB.estimates.filter(x=>x.id!==id);
+  saveDB();
+  toast('Estimate deleted');
+  navigate('estimates');
+}
+
+/* -------- Quotation picker modal -------- */
+let estPicker = {estId:null, q:'', allClients:false, sel:new Set()};
+
+function openEstimateQuotePicker(id){
+  const e = (DB.estimates||[]).find(x=>x.id===id);
+  if(!e) return;
+  collectEstimateForm(e);
+  saveDB();
+  estPicker = {estId:id, q:'', allClients: !e.client_id && !e.client, sel:new Set()};
+  openModal(`
+    <div class="modal-head">
+      <div class="modal-title">Add quotation(s) to ${escapeHTML(e.est_no||e.id)}</div>
+      <button class="btn btn-icon btn-ghost" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="search-row" style="margin-bottom:10px">
+        <input id="epq_search" placeholder="Search client, project or PI number..." style="max-width:none;flex:1" oninput="estPicker.q=this.value;renderEstPickerList()">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer">
+        <input type="checkbox" id="epq_all" ${estPicker.allClients?'checked':''} onchange="estPicker.allClients=this.checked;renderEstPickerList()">
+        Show quotations from all clients${(e.client_id||e.client)?` (otherwise only <b style="color:var(--text)">${escapeHTML(estimateClientName(e))}</b>)`:''}
+      </label>
+      <div id="estPickList" style="border:1px solid var(--border);border-radius:8px;max-height:44vh;overflow-y:auto"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="epq_add" onclick="addPickedQuotes()">Add selected</button>
+    </div>
+  `);
+  renderEstPickerList();
+}
+
+function renderEstPickerList(){
+  const e = (DB.estimates||[]).find(x=>x.id===estPicker.estId);
+  const box = document.getElementById('estPickList');
+  if(!e || !box) return;
+  const already = new Set((e.sections||[]).map(s=>s.quote_id));
+  const estClientName = (estimateClientName(e)||'').toLowerCase();
+
+  let qs = (DB.quotes||[]).filter(q => !already.has(q.id));
+  if(!estPicker.allClients && (e.client_id || estClientName)){
+    qs = qs.filter(q => e.client_id
+      ? q.client_id === e.client_id
+      : (q.client||'').toLowerCase() === estClientName);
+  }
+  if(estPicker.q){
+    const t = estPicker.q.toLowerCase();
+    qs = qs.filter(q=>{
+      const linked = q.client_id ? (DB.clients||[]).find(c=>c.id===q.client_id) : null;
+      return (((linked?linked.name:q.client)||'')+' '+(q.project_name||'')+' '+(q.pi_no||'')).toLowerCase().includes(t);
+    });
+  }
+  qs.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const btn = document.getElementById('epq_add');
+  if(btn) btn.textContent = estPicker.sel.size ? `Add ${estPicker.sel.size} selected` : 'Add selected';
+
+  box.innerHTML = qs.length === 0
+    ? `<div class="empty" style="padding:24px">No quotations available.${estPicker.allClients?'':' Try ticking “Show quotations from all clients”.'}</div>`
+    : qs.map(q=>{
+        const linked = q.client_id ? (DB.clients||[]).find(c=>c.id===q.client_id) : null;
+        const clientName = linked ? linked.name : (q.client||'');
+        const itemsTotal = (q.items||[]).reduce((s,it)=>s+(+it.qty||0)*(+it.price||0),0) - (+q.discount||0);
+        const checked = estPicker.sel.has(q.id);
+        return `<div class="ce-pick-row" onclick="toggleEstPick('${q.id}')">
+          <input type="checkbox" ${checked?'checked':''} onclick="event.stopPropagation();toggleEstPick('${q.id}')">
+          <div class="grow">
+            <div><b>${escapeHTML(q.project_name || clientName || '(unnamed)')}</b> <span class="tag">${escapeHTML(q.pi_no||q.id)}</span></div>
+            <div class="muted" style="font-size:12px">${escapeHTML(clientName)} · ${fmtDate(q.date)} · ${(q.items||[]).length} item(s) · ${escapeHTML(q.status||'')}</div>
+          </div>
+          <div class="amt">${fmtINR(Math.max(0,itemsTotal))}</div>
+        </div>`;
+      }).join('');
+}
+
+function toggleEstPick(qid){
+  if(estPicker.sel.has(qid)) estPicker.sel.delete(qid); else estPicker.sel.add(qid);
+  renderEstPickerList();
+}
+
+function addPickedQuotes(){
+  const e = (DB.estimates||[]).find(x=>x.id===estPicker.estId);
+  if(!e) return;
+  if(estPicker.sel.size === 0){ toast('Tick at least one quotation', 'error'); return; }
+  const picked = Array.from(estPicker.sel)
+    .map(id => (DB.quotes||[]).find(q=>q.id===id))
+    .filter(Boolean)
+    .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  picked.forEach(q=>{
+    e.sections.push({ quote_id: q.id, label: (q.project_name || q.client || q.pi_no || '').toUpperCase() });
+  });
+  // Adopt the client from the first quotation if the estimate has none yet.
+  if(!e.client_id && !e.client && picked[0]){
+    if(picked[0].client_id) e.client_id = picked[0].client_id;
+    else e.client = picked[0].client || '';
+  }
+  e.updated = new Date().toISOString();
+  saveDB();
+  closeModal();
+  toast(`Added ${picked.length} quotation${picked.length===1?'':'s'}`);
+  renderEstimateDetail(e.id);
+}
+
+/* -------- Print: proforma-style composite document -------- */
+function printEstimate(id){
+  const e = (DB.estimates||[]).find(x=>x.id===id);
+  if(!e) return;
+  collectEstimateForm(e);
+  e.updated = new Date().toISOString();
+  saveDB();
+
+  const secs = estimateSections(e);
+  if(secs.length === 0){ alert('Add at least one quotation before printing.'); return; }
+  const missing = secs.filter(s=>s.missing);
+  if(missing.length){
+    alert(`${missing.length} section(s) point to a quotation that no longer exists. Remove them before printing.`);
+    return;
+  }
+
+  const c = DB.company;
+  const client = e.client_id ? (DB.clients||[]).find(x=>x.id===e.client_id) : null;
+  const clientName = client ? client.name : (e.client||'');
+  const addrLines = client ? [client.address_l1, client.address_l2, [client.city, client.state, client.pincode].filter(Boolean).join(' - ')].filter(Boolean) : [];
+  const contactLine = client ? [client.contact_person, client.phone, client.email].filter(Boolean).join(' · ') : '';
+
+  const sub = estimateSubtotal(e);
+  const disc = estimateDiscountAmt(e);
+  const afterDisc = estimateAfterDiscount(e);
+  const tax = estimateTax(e);
+  const total = estimateTotal(e);
+  const grandLabel = estimateGrandLabel(e);
+  const discLabel = (e.discount_mode||'PCT') === 'PCT'
+    ? `LESS ${(+e.discount_pct||0).toLocaleString('en-IN',{maximumFractionDigits:2})}% DISCOUNT`
+    : 'LESS DISCOUNT';
+
+  const sectionRows = secs.map(s=>`
+    <tr class="ce-sec"><td colspan="7">${escapeHTML(s.letter)}. ${escapeHTML(s.label||'(unnamed section)')}</td></tr>
+    ${s.items.map((it,i)=>`
+      <tr>
+        <td class="ctr" style="width:32px">${i+1}</td>
+        <td class="it-make">${escapeHTML(it.make||'')}</td>
+        <td><div class="it-desc" style="color:#333;font-size:8.6pt">${escapeHTML(it.desc||'')}</div></td>
+        <td class="ctr" style="width:48px">${escapeHTML(it.uom||'')}</td>
+        <td class="num" style="width:52px">${fmtNum(it.qty)}</td>
+        <td class="num" style="width:86px">${fmtNum(Math.round((+it.price||0)))}</td>
+        <td class="num" style="width:96px"><b>${fmtNum(Math.round((+it.qty||0)*(+it.price||0)))}</b></td>
+      </tr>`).join('')}
+    ${s.disc > 0 ? `<tr class="ce-sub"><td colspan="6" class="lbl">Less discount on this section</td><td class="num">− ${fmtNum(Math.round(s.disc))}</td></tr>` : ''}
+    <tr class="ce-sub"><td colspan="6" class="lbl">Total ${escapeHTML(s.letter)}</td><td class="num">${fmtNum(Math.round(s.total))}</td></tr>
+  `).join('');
+
+  const html = `
+    <div class="print-page">
+      <div class="ce-title">${escapeHTML(e.doc_title||'PROFORMA INVOICE')}</div>
+      <div class="ce-top">
+        <div class="cell">
+          <div class="co-name">${escapeHTML(c.name||'')}</div>
+          <div class="ln">${escapeHTML(c.address_l1||'')}</div>
+          <div class="ln">${escapeHTML(c.address_l2||'')}</div>
+          <div class="ln">GSTIN/UIN : ${escapeHTML(c.gstin||'')}</div>
+          <div class="ln">State Name : ${escapeHTML(c.state||'')} : ${escapeHTML(c.state_code||'')}</div>
+          <div class="ln">E-Mail : ${escapeHTML(c.email||'')}</div>
+          ${clientName ? `<div class="ln" style="margin-top:7px"><span class="lbl">To:</span> ${escapeHTML(clientName)}</div>` : ''}
+          ${addrLines.length ? `<div class="ln">${addrLines.map(escapeHTML).join('<br>')}</div>` : ''}
+          ${contactLine ? `<div class="ln">${escapeHTML(contactLine)}</div>` : ''}
+          ${client && client.gstin ? `<div class="ln"><span class="lbl">Client GSTIN:</span> ${escapeHTML(client.gstin)}</div>` : ''}
+        </div>
+        <div class="cell">
+          <div class="ln"><span class="lbl">${escapeHTML(e.doc_title||'PROFORMA INVOICE')} No.</span> ${escapeHTML(e.est_no||e.id)}</div>
+          <div class="ln"><span class="lbl">Date:</span> ${fmtDate(e.date)}</div>
+          <div class="ln" style="margin-top:8px"><span class="lbl">BANK DETAILS.</span></div>
+          <div class="ln">${escapeHTML(c.bank_name||'')}</div>
+          <div class="ln">A/C NAME : ${escapeHTML(c.bank_ac_name||'')}</div>
+          <div class="ln">Branch - ${escapeHTML(c.bank_branch||'')}</div>
+          <div class="ln">Current A/C No. ${escapeHTML(c.bank_ac||'')}</div>
+          <div class="ln">RTGS / NEFT IFSC: ${escapeHTML(c.bank_ifsc||'')}</div>
+          <div class="ln">MICR Code: ${escapeHTML(c.bank_micr||'')}</div>
+          <div class="ln">PAN NO:- ${escapeHTML(c.pan||'')}</div>
+        </div>
+      </div>
+      ${e.project_name ? `<div class="ce-proj">${escapeHTML(e.project_name)}</div>` : ''}
+
+      <table class="ce-tbl">
+        <thead>
+          <tr>
+            <th style="width:32px">Sl No.</th>
+            <th>Make</th>
+            <th>Product Description</th>
+            <th style="width:48px">UOM</th>
+            <th style="width:52px">Qty.</th>
+            <th style="width:86px">Unit Price in INR</th>
+            <th style="width:96px">Total Price in INR</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sectionRows}
+          ${e.support_note ? `<tr class="ce-note"><td colspan="7">${escapeHTML(e.support_note)}</td></tr>` : ''}
+          <tr class="ce-tot"><td colspan="6" style="text-align:right;text-transform:uppercase;letter-spacing:.4px">Total</td><td class="num">${fmtNum(Math.round(sub))}</td></tr>
+          ${disc > 0 ? `<tr class="ce-disc"><td colspan="6" style="text-align:right;text-transform:uppercase;letter-spacing:.4px">${escapeHTML(discLabel)}</td><td class="num">− ${fmtNum(Math.round(disc))}</td></tr>` : ''}
+          ${e.tax_type === 'SGST_CGST' ? `
+            <tr class="ce-tot"><td colspan="6" style="text-align:right">Taxable value</td><td class="num">${fmtNum(Math.round(afterDisc))}</td></tr>
+            <tr class="ce-tot"><td colspan="6" style="text-align:right">SGST @ 9%</td><td class="num">${fmtNum(Math.round(afterDisc*0.09))}</td></tr>
+            <tr class="ce-tot"><td colspan="6" style="text-align:right">CGST @ 9%</td><td class="num">${fmtNum(Math.round(afterDisc*0.09))}</td></tr>` : ''}
+          ${e.tax_type === 'IGST' ? `
+            <tr class="ce-tot"><td colspan="6" style="text-align:right">Taxable value</td><td class="num">${fmtNum(Math.round(afterDisc))}</td></tr>
+            <tr class="ce-tot"><td colspan="6" style="text-align:right">IGST @ 18%</td><td class="num">${fmtNum(Math.round(tax))}</td></tr>` : ''}
+          <tr class="ce-grand"><td colspan="6" style="text-align:center;letter-spacing:1px">${escapeHTML(grandLabel)}</td><td class="num">${fmtNum(Math.round(total))}</td></tr>
+        </tbody>
+      </table>
+
+      <div class="ce-boxes">
+        <div class="bx">
+          <div class="lbl">Note</div>
+          <div class="ce-note-box">${(e.note_box||'').split('\n').map(l=>escapeHTML(l)).join('<br>')}</div>
+        </div>
+        <div class="bx">
+          <div class="lbl">Payment Terms</div>
+          ${(e.payment_terms||'').split('\n').filter(l=>l.trim()).map(l=>`<div class="ln">${escapeHTML(l)}</div>`).join('')}
+        </div>
+      </div>
+
+      <div class="ce-terms">
+        <div class="hd">Commercial Terms &amp; Conditions</div>
+        ${(e.terms||'').split('\n').filter(l=>l.trim()).map((l,i)=>`<div class="ln">${i+1}&nbsp;&nbsp;${escapeHTML(l)}</div>`).join('')}
+      </div>
+
+      <div class="ce-contact">
+        CONTACT PERSON : ${escapeHTML((c.contact_person||'').toUpperCase())}<br>
+        CONTACT NUMBER : ${escapeHTML(c.phone||'')}
+      </div>
+
+      <div class="ce-foot">This is a Computer Generated ${escapeHTML(e.doc_title||'Proforma Invoice')}</div>
     </div>
   `;
 
