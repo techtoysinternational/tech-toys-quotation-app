@@ -278,7 +278,7 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .project-stats b{color:var(--text);font-size:21px;margin-right:5px}
 .project-notice{background:var(--accent-dim);border:1px solid #70401f;padding:13px 16px;border-radius:10px;margin-bottom:20px;color:#f7d8be;line-height:1.7}
 .project-notice.subtle{background:transparent;border-color:var(--border);color:var(--muted);font-size:13px}
-.project-filters{display:grid;grid-template-columns:minmax(240px,2fr) repeat(3,minmax(130px,1fr));gap:12px;margin-bottom:12px}
+.project-filters{display:grid;grid-template-columns:minmax(240px,2fr) repeat(5,minmax(120px,1fr));gap:12px;margin-bottom:12px}
 .project-filters label{color:var(--muted);font-size:12px;display:grid;gap:5px}
 .project-filter-options{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:18px;align-items:center;color:var(--muted);font-size:12px}
 .project-filter-options label,.project-check{display:flex;gap:7px;align-items:center}
@@ -286,7 +286,7 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 #projectResults{margin-left:auto}
 .project-table-wrap{overflow-x:auto;padding:0}
 .project-table-wrap>.card-head{padding:18px 20px 0}
-.project-table{min-width:790px}
+.project-table{min-width:980px}
 .project-table td{vertical-align:top;padding-top:15px;padding-bottom:15px}
 .project-name{font-weight:650;text-align:left;color:var(--text);font-size:14px;max-width:330px}
 .project-name:hover{color:var(--accent2);text-decoration:underline}
@@ -303,7 +303,7 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .project-move select{max-width:480px}
 .project-form-error{color:#ffb4b4;min-height:18px;margin-top:12px}
 .project-quote-link{margin-bottom:18px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
-@media(max-width:1000px){.project-filters{grid-template-columns:1fr 1fr}.project-search{grid-column:1/-1}.project-filters>label:last-child{grid-column:1/-1}}
+@media(max-width:1200px){.project-filters{grid-template-columns:1fr 1fr 1fr}.project-search{grid-column:1/-1}}
 @media(max-width:520px){.project-filters{grid-template-columns:1fr}.project-stats{gap:12px}.project-stats b{font-size:18px}.project-filter-options{gap:12px}.project-move{flex-direction:column;align-items:stretch}.page-actions{flex-wrap:wrap}}
 
 </style>
@@ -318,11 +318,11 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
     <form id="loginForm">
       <label for="loginUsername">Owner email</label><input type="email" id="loginUsername" autocomplete="username" required autofocus>
       <label for="loginPwd">Password</label><input type="password" id="loginPwd" autocomplete="current-password" required>
-      <button class="btn btn-primary" id="ownerSignIn" type="submit" style="width:100%;margin-top:16px">Sign in</button>
+      <button class="btn btn-primary" id="ownerSignIn" type="submit" style="width:100%;margin-top:16px">Sign in with email</button>
     </form>
     <button class="btn" id="ownerGoogle" style="width:100%;margin-top:10px">Continue with Google</button>
-    <button class="text-button" onclick="sendOwnerReset()" style="margin-top:16px">Set or reset password by email</button>
-    <p class="login-hint">Only the approved owner can open this workspace.</p>
+    <button class="text-button" onclick="sendOwnerReset()" style="margin-top:16px">Forgot password? Send reset email</button>
+    <p class="login-hint">First time using email? Continue with Google, then open Settings → Add email sign-in. Only the approved owner can open this workspace.</p>
   </div>
 </div>
 
@@ -545,7 +545,7 @@ if (typeof module !== 'undefined') module.exports = ProjectsCore;
 
 /* Included inline in the distributable HTML so the app also works from a local file. */
 const PROJECTS_BACKUP_PREFIX = 'techToys_beforeProjects_';
-let projectsFilter = {search:'',category:'',type:'',completion:'',review:false,archived:false};
+let projectsFilter = {search:'',category:'',type:'',completion:'',city:'',year:'',review:false,archived:false};
 function projectStorageBackup(raw, reason = 'migration') {
   if (!raw) return;
   const key = PROJECTS_BACKUP_PREFIX + new Date().toISOString() + '_' + reason;
@@ -598,10 +598,31 @@ function bindProjectActions(root=document.getElementById('mainView')) {
   });
 }
 function projectSelect(options,value) { return options.map(v=>`<option value="${projectEscape(v)}" ${v===value?'selected':''}>${projectEscape(v || 'All')}</option>`).join(''); }
-function projectPill(p) { return `<span class="project-category ${p.category==='F&B'?'fnb':'non-fnb'}">${projectEscape(p.category)}</span>`; }
-function projectDataNote() {
-  return `<div class="project-notice">${DB.portfolio?.imports?.includes('completed-fnb-2026-09-14')?'Your completed portfolio is included in private cloud sync.':'Load the completed portfolio once to sync it across your devices.'} <button class="text-button" onclick="document.getElementById('privatePortfolioFile').click()">Load portfolio</button><input id="privatePortfolioFile" type="file" accept="application/json,.json" hidden onchange="importPrivatePortfolio(this)"></div>`;
+function projectFieldOptions(field,sorter) {
+  return [...new Set(DB.portfolio.projects.map(p=>String(p[field]||'').trim()).filter(Boolean))].sort(sorter);
 }
+function projectPill(p) { return `<span class="project-category ${p.category==='F&B'?'fnb':'non-fnb'}">${projectEscape(p.category)}</span>`; }
+function completedPortfolioPresent(db){
+  return !!(db?.portfolio?.imports?.includes('completed-fnb-2026-09-14') && db.portfolio.projects?.length);
+}
+function portfolioNoticeState(){
+  if(!AUTH_OWNER||!CLOUD_READY||CLOUD_LOADING||!SYNC_BASE)return 'checking';
+  if(completedPortfolioPresent(SYNC_BASE))return 'cloud';
+  if(SYNC_CONFLICT)return 'review';
+  if(completedPortfolioPresent(DB))return 'pending';
+  return 'missing';
+}
+function projectDataNote() {
+  const state=portfolioNoticeState(),messages={checking:'Checking your private cloud portfolio…',cloud:'Your completed portfolio is saved in your private cloud and available on your signed-in devices.',review:'Portfolio sync needs review. Both saved copies are retained; resolve the sync notice to continue.',pending:'Your completed portfolio is saved on this device. Waiting for private cloud sync.'};
+  if(messages[state])return `<div id="portfolioSyncNotice" class="project-notice" data-state="${state}" role="status">${messages[state]}</div>`;
+  // Only a confirmed cloud read with no saved completed portfolio offers import.
+  return '<div id="portfolioSyncNotice" class="project-notice" data-state="missing">Your completed portfolio is not in the private cloud yet. <button class="text-button" onclick="document.getElementById(\'privatePortfolioFile\').click()">Load portfolio</button><input id="privatePortfolioFile" type="file" accept="application/json,.json" hidden onchange="importPrivatePortfolio(this)"></div>';
+}
+function refreshPortfolioNotice(){
+  const notice=document.getElementById('portfolioSyncNotice');
+  if(notice&&notice.dataset.state!==portfolioNoticeState())notice.outerHTML=projectDataNote();
+}
+
 
 function renderProjects() {
   const ps=DB.portfolio.projects;
@@ -612,14 +633,16 @@ function renderProjects() {
     ${projectDataNote()}
     <div class="project-stats"><span><b>${visible.length}</b> projects</span><span><b>${visible.filter(p=>p.category==='F&B' && p.completion==='Completed').length}</b> completed F&amp;B venues</span><span><b>${visible.filter(p=>p.category==='Non-F&B').length}</b> non-F&amp;B</span><span><b>${visible.filter(p=>p.review_note).length}</b> to review</span></div>
     <div class="project-notice subtle">Your uploaded portfolio is F&amp;B, including hotels. Other existing projects are non-F&amp;B. Quotation status and project completion are kept separately.</div>
-    <div class="project-filters"><label class="project-search">Search<input id="projectSearch" type="search" placeholder="Venue, client, work or alias" value="${projectEscape(projectsFilter.search)}"></label>
+    <div class="project-filters"><label class="project-search">Search<input id="projectSearch" type="search" placeholder="Venue, city, year, client, work or alias" value="${projectEscape(projectsFilter.search)}"></label>
     <label>Category<select id="projectCategory">${projectSelect(['','F&B','Non-F&B'],projectsFilter.category)}</select></label>
     <label>Venue type<select id="projectType">${projectSelect(['',...ProjectsCore.types],projectsFilter.type)}</select></label>
-    <label>Completion<select id="projectCompletion">${projectSelect(['',...ProjectsCore.stages],projectsFilter.completion)}</select></label></div>
+    <label>Completion<select id="projectCompletion">${projectSelect(['',...ProjectsCore.stages],projectsFilter.completion)}</select></label>
+    <label>City<select id="projectCity">${projectSelect(['',...projectFieldOptions('city',(a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}))],projectsFilter.city)}</select></label>
+    <label>Year<select id="projectYear">${projectSelect(['',...projectFieldOptions('year',(a,b)=>b.localeCompare(a,undefined,{numeric:true}))],projectsFilter.year)}</select></label></div>
     <div class="project-filter-options"><label><input type="checkbox" id="projectReview" ${projectsFilter.review?'checked':''}> Needs review</label><label><input type="checkbox" id="projectArchived" ${projectsFilter.archived?'checked':''}> Include archived</label><span id="projectResults" aria-live="polite"></span></div>
-    <div class="card project-table-wrap"><table class="tbl project-table"><thead><tr><th>Venue / project</th><th>Category</th><th>Type</th><th>Completion</th><th>Quotations</th><th></th></tr></thead><tbody id="projectRows"></tbody></table></div>
+    <div class="card project-table-wrap"><table class="tbl project-table"><thead><tr><th>Venue / project</th><th>City</th><th>Year</th><th>Category</th><th>Type</th><th>Completion</th><th>Quotations</th><th></th></tr></thead><tbody id="projectRows"></tbody></table></div>
     <div class="project-footer">Portfolio source: your handwritten list, reviewed 14 Sep 2026. <button class="text-button" onclick="exportProjectsSafetyBackup()">Download safety backup</button> · <button class="text-button" onclick="exportData()">Download full current backup</button></div>`;
-  [['projectSearch','search'],['projectCategory','category'],['projectType','type'],['projectCompletion','completion']].forEach(([id,key])=>document.getElementById(id).addEventListener(id==='projectSearch'?'input':'change',e=>{projectsFilter[key]=e.target.value;renderProjectRows();}));
+  [['projectSearch','search'],['projectCategory','category'],['projectType','type'],['projectCompletion','completion'],['projectCity','city'],['projectYear','year']].forEach(([id,key])=>document.getElementById(id).addEventListener(id==='projectSearch'?'input':'change',e=>{projectsFilter[key]=e.target.value;renderProjectRows();}));
   [['projectReview','review'],['projectArchived','archived']].forEach(([id,key])=>document.getElementById(id).onchange=e=>{projectsFilter[key]=e.target.checked;renderProjectRows();});
   renderProjectRows();
 }
@@ -628,25 +651,27 @@ function renderProjectRows() {
   if(projectsFilter.category) rows=rows.filter(p=>p.category===projectsFilter.category);
   if(projectsFilter.type) rows=rows.filter(p=>p.type===projectsFilter.type);
   if(projectsFilter.completion) rows=rows.filter(p=>p.completion===projectsFilter.completion);
+  if(projectsFilter.city) rows=rows.filter(p=>String(p.city||'').trim()===projectsFilter.city);
+  if(projectsFilter.year) rows=rows.filter(p=>String(p.year||'').trim()===projectsFilter.year);
   if(projectsFilter.review) rows=rows.filter(p=>p.review_note);
   if(projectsFilter.search) {
     const terms=projectsFilter.search.toLowerCase().trim().split(/\s+/);
-    rows=rows.filter(p=>{const text=[p.name,...(p.aliases||[]),...ProjectsCore.clients(DB,p.id).map(c=>c.name),...ProjectsCore.quotes(DB,p.id).map(q=>q.project_name||''),...ProjectsCore.works(DB,p.id).map(w=>w.name)].join(' ').toLowerCase();return terms.every(t=>text.includes(t));});
+    rows=rows.filter(p=>{const text=[p.name,p.city||'',p.year||'',...(p.aliases||[]),...ProjectsCore.clients(DB,p.id).map(c=>c.name),...ProjectsCore.quotes(DB,p.id).map(q=>q.project_name||''),...ProjectsCore.works(DB,p.id).map(w=>w.name)].join(' ').toLowerCase();return terms.every(t=>text.includes(t));});
   }
   rows.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
   document.getElementById('projectResults').textContent=`${rows.length} shown`;
   document.getElementById('projectRows').innerHTML=rows.length?rows.map(p=>{
     const qs=ProjectsCore.quotes(DB,p.id),cs=ProjectsCore.clients(DB,p.id);
     const status=[...new Set(qs.map(q=>q.status))].join(', ');
-    return `<tr><td><button class="project-name" ${projectAction(p.id)}>${projectEscape(p.name)}</button><div class="project-meta">${projectEscape(cs.map(c=>c.name).join(' · ') || 'No quotation required')}${p.archived?' · Archived':''}</div>${p.review_note?'<span class="project-review">Needs review</span>':''}</td><td>${projectPill(p)}</td><td>${projectEscape(p.type)}</td><td>${projectEscape(p.completion)}</td><td><b>${qs.length}</b><div class="project-meta">${projectEscape(status || 'Portfolio only')}</div></td><td>${projectButton(p.id,'Edit','edit')}</td></tr>`;
-  }).join(''):'<tr><td colspan="6" class="empty">No projects match these filters.</td></tr>';
+    return `<tr><td><button class="project-name" ${projectAction(p.id)}>${projectEscape(p.name)}</button><div class="project-meta">${projectEscape(cs.map(c=>c.name).join(' · ') || 'No quotation required')}${p.archived?' · Archived':''}</div>${p.review_note?'<span class="project-review">Needs review</span>':''}</td><td>${projectEscape(p.city||'—')}</td><td>${projectEscape(p.year||'—')}</td><td>${projectPill(p)}</td><td>${projectEscape(p.type)}</td><td>${projectEscape(p.completion)}</td><td><b>${qs.length}</b><div class="project-meta">${projectEscape(status || 'Portfolio only')}</div></td><td>${projectButton(p.id,'Edit','edit')}</td></tr>`;
+  }).join(''):'<tr><td colspan="8" class="empty">No projects match these filters.</td></tr>';
   bindProjectActions(document.getElementById('projectRows'));
 }
 function renderProjectDetail(id) {
   const p=ProjectsCore.get(DB,id);
   if(!p){document.getElementById('mainView').innerHTML='<div class="empty">Project not found. <button class="btn" onclick="navigate(\'projects\')">Back to Projects</button></div>';return;}
   const qs=ProjectsCore.quotes(DB,id),cs=ProjectsCore.clients(DB,id),ws=ProjectsCore.works(DB,id);
-  document.getElementById('mainView').innerHTML=`<div class="page-head"><div><div class="page-title">${projectEscape(p.name)}</div><div class="page-sub">${projectEscape(p.origin || 'Added project')} · All years</div></div><div class="page-actions"><button class="btn" onclick="navigate('projects')">← Projects</button>${projectButton(id,'Edit project','edit','btn btn-primary')}${projectButton(id,'New quote','quote','btn')}</div></div>
+  document.getElementById('mainView').innerHTML=`<div class="page-head"><div><div class="page-title">${projectEscape(p.name)}</div><div class="page-sub">${projectEscape(p.origin || 'Added project')}${p.city?' · '+projectEscape(p.city):''}${p.year?' · '+projectEscape(p.year):' · Year not recorded'}</div></div><div class="page-actions"><button class="btn" onclick="navigate('projects')">← Projects</button>${projectButton(id,'Edit project','edit','btn btn-primary')}${projectButton(id,'New quote','quote','btn')}</div></div>
     ${p.review_note?`<div class="project-notice">${projectEscape(p.review_note)}</div>`:''}
     <div class="card"><div class="project-stats">${projectPill(p)}<span>${projectEscape(p.type)}</span><span>${projectEscape(p.completion)}</span>${p.archived?'<span>Archived</span>':''}</div>${p.notes?`<p>${projectEscape(p.notes)}</p>`:''}${p.aliases?.length?`<p class="project-meta">Also recorded as: ${p.aliases.map(projectEscape).join(', ')}</p>`:''}
     <div class="project-client-links">${cs.length?cs.map(c=>`<a href="#client/${encodeURIComponent(c.id)}">${projectEscape(c.name)}</a>`).join(' · '):'<span class="muted">No client linked yet. A portfolio venue does not need a quotation.</span>'}</div></div>
@@ -658,10 +683,11 @@ function renderProjectDetail(id) {
   document.getElementById('moveProjectButton').onclick=()=>{const to=document.getElementById('moveProjectTarget').value;if(!to)return; if(!confirm('Move linked work and quotations to the selected venue?'))return;projectStorageBackup(JSON.stringify(DB),'before-move');ProjectsCore.moveLinks(DB,id,to);saveDB();navigate('project',to);};
 }
 function editPortfolioProject(id) {
-  const p=id?ProjectsCore.get(DB,id):{name:'',category:'Non-F&B',type:'Unspecified',completion:'Not recorded',aliases:[],notes:'',review_note:''};
+  const p=id?ProjectsCore.get(DB,id):{name:'',city:'',year:'',category:'Non-F&B',type:'Unspecified',completion:'Not recorded',aliases:[],notes:'',review_note:''};
   if(!p)return;
   openModal(`<div class="modal-head"><div class="modal-title">${id?'Edit':'Add'} project</div><button class="btn btn-icon" onclick="closeModal()" aria-label="Close">×</button></div><div class="modal-body"><div class="form-grid">
     <div class="field full"><label for="ppName">Venue / project name</label><input id="ppName" value="${projectEscape(p.name)}"></div>
+    <div class="field"><label for="ppCity">City</label><input id="ppCity" value="${projectEscape(p.city||'')}" placeholder="Leave blank if unknown"></div><div class="field"><label for="ppYear">Year</label><input id="ppYear" value="${projectEscape(p.year||'')}" inputmode="numeric" placeholder="Leave blank if unknown"></div>
     <div class="field"><label for="ppCategory">Category</label><select id="ppCategory">${projectSelect(['F&B','Non-F&B'],p.category)}</select></div><div class="field"><label for="ppType">Venue type</label><select id="ppType">${projectSelect(ProjectsCore.types,p.type)}</select></div>
     <div class="field"><label for="ppCompletion">Completion</label><select id="ppCompletion">${projectSelect(ProjectsCore.stages,p.completion)}</select></div>
     <div class="field"><label for="ppClient">Client (optional)</label><select id="ppClient"><option value="">No additional client link</option>${(DB.clients||[]).map(c=>`<option value="${projectEscape(c.id)}" ${(p.client_ids||[]).includes(c.id)?'selected':''}>${projectEscape(c.name)}</option>`).join('')}</select></div>
@@ -678,7 +704,7 @@ function editPortfolioProject(id) {
     const row=id?p:{id:ProjectsCore.nextId(DB.portfolio),created:now,origin:'Added project'};
     if(id && name!==p.name && !aliases.includes(p.name))aliases.push(p.name);
     const clientId=document.getElementById('ppClient').value;
-    Object.assign(row,{name,category:document.getElementById('ppCategory').value,type:document.getElementById('ppType').value,completion:document.getElementById('ppCompletion').value,aliases,notes:document.getElementById('ppNotes').value,review_note:document.getElementById('ppReview').value,archived:document.getElementById('ppArchived').checked,client_ids:clientId?[clientId]:[],updated:now});
+    Object.assign(row,{name,city:document.getElementById('ppCity').value.trim(),year:document.getElementById('ppYear').value.trim(),category:document.getElementById('ppCategory').value,type:document.getElementById('ppType').value,completion:document.getElementById('ppCompletion').value,aliases,notes:document.getElementById('ppNotes').value,review_note:document.getElementById('ppReview').value,archived:document.getElementById('ppArchived').checked,client_ids:clientId?[clientId]:[],updated:now});
     if(!id)DB.portfolio.projects.push(row);
     saveDB();closeModal();navigate('project',row.id);toast('Project saved');
   };
@@ -730,7 +756,7 @@ function exportProjectsSafetyBackup() {
 }
 function exportProjectsCSV() {
   const cell=v=>'"'+String(v||'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"';
-  const rows=[['Venue / project','Category','Type','Completion','Clients','Quotations','Review note','Archived'],...DB.portfolio.projects.map(p=>[p.name,p.category,p.type,p.completion,ProjectsCore.clients(DB,p.id).map(c=>c.name).join('; '),ProjectsCore.quotes(DB,p.id).length,p.review_note,p.archived?'Yes':'No'])];
+  const rows=[['Venue / project','City','Year','Category','Type','Completion','Clients','Quotations','Review note','Archived'],...DB.portfolio.projects.map(p=>[p.name,p.city||'',p.year||'',p.category,p.type,p.completion,ProjectsCore.clients(DB,p.id).map(c=>c.name).join('; '),ProjectsCore.quotes(DB,p.id).length,p.review_note,p.archived?'Yes':'No'])];
   projectDownload('\uFEFF'+rows.map(row=>row.map(cell).join(',')).join('\r\n'),`tech-toys-projects-${today()}.csv`,'text/csv;charset=utf-8');
 }
 function clientClassification(id){return DB.portfolio.client_classifications[id] || {category:'Needs review',type:'Unspecified',basis:'Review this client’s linked portfolio work.'};}
@@ -891,7 +917,7 @@ function cloudStatusText(text) {
   const footer=document.querySelector('.nav-footer');if(!footer)return;
   let el=document.getElementById('cloudStatus');
   if(!el){el=document.createElement('div');el.id='cloudStatus';el.style.cssText='margin-top:6px;font-size:11px';footer.appendChild(el);}
-  el.textContent=text;
+  el.textContent=text;refreshPortfolioNotice();
 }
 async function loadCloudSdkForHostedApp() {
   if(location.protocol!=='https:'||['localhost','127.0.0.1'].includes(location.hostname))return false;
@@ -1324,6 +1350,45 @@ async function login(email,password) {
   if(!AUTH)throw new Error('Sign-in is not ready');
   // Existing credentials go directly to Firebase Authentication.
   return AUTH.signInWithEmailAndPassword(email.trim(),password);
+}
+function ownerHasEmailPassword(){return !!AUTH?.currentUser?.providerData.some(p=>p.providerId==='password');}
+function closeOwnerEmailSetup(){
+  for(const id of ['ownerNewPassword','ownerConfirmPassword']){const el=document.getElementById(id);if(el)el.value='';}
+  closeModal();document.getElementById('modal').textContent='';
+}
+function openOwnerEmailSetup(){
+  if(!AUTH_OWNER||AUTH?.currentUser?.uid!==AUTH_OWNER.uid||!AUTH.currentUser.emailVerified)return;
+  if(ownerHasEmailPassword()){toast('Email sign-in is already linked to your owner account.');return;}
+  openModal(`<div class="modal-head"><div class="modal-title">Add email sign-in</div><button class="btn btn-icon" onclick="closeOwnerEmailSetup()" aria-label="Close password setup">×</button></div>
+    <form id="ownerEmailSetupForm"><div class="modal-body"><p>Set a password for your existing owner account. Google sign-in will stay available.</p>
+    <div class="form-grid"><div class="field full"><label for="ownerSetupEmail">Owner email</label><input id="ownerSetupEmail" type="email" value="${escapeHTML(AUTH.currentUser.email)}" readonly autocomplete="username"></div>
+    <div class="field full"><label for="ownerNewPassword">New password</label><input id="ownerNewPassword" type="password" autocomplete="new-password" minlength="8" required></div>
+    <div class="field full"><label for="ownerConfirmPassword">Confirm new password</label><input id="ownerConfirmPassword" type="password" autocomplete="new-password" minlength="8" required></div></div>
+    <p id="ownerEmailSetupMessage" role="status">Enter your password privately. It goes directly to Firebase Authentication.</p></div>
+    <div class="modal-foot"><button type="button" class="btn" onclick="closeOwnerEmailSetup()">Cancel</button><button type="submit" id="ownerEmailSetupSave" class="btn btn-primary">Enable my email sign-in</button></div></form>`);
+  document.getElementById('ownerEmailSetupForm').onsubmit=async event=>{
+    event.preventDefault();if(AUTH_BUSY)return;
+    const user=AUTH.currentUser,uid=AUTH_OWNER?.uid,epoch=AUTH_EPOCH,message=document.getElementById('ownerEmailSetupMessage');
+    const password=document.getElementById('ownerNewPassword').value,confirmation=document.getElementById('ownerConfirmPassword').value;
+    if(!uid||user?.uid!==uid||!user.emailVerified){closeOwnerEmailSetup();return;}
+    if(password!==confirmation){message.textContent='The passwords do not match. Please enter them again.';return;}
+    AUTH_BUSY=true;document.getElementById('ownerEmailSetupSave').disabled=true;
+    try {
+      // Set the password on this signed-in user. Do not create an account,
+      // change the email or unlink Google (Firebase updatePassword API).
+      await user.updatePassword(password);
+      await user.reload();
+      if(epoch!==AUTH_EPOCH||AUTH.currentUser?.uid!==uid||AUTH_OWNER?.uid!==uid)return;
+      closeOwnerEmailSetup();renderSettings();
+      toast('Email sign-in added to your existing owner account. Google sign-in remains available.');
+    }catch(error){
+      message.textContent=error.code==='auth/requires-recent-login'?'Sign out and continue with Google again, then retry password setup.':error.code==='auth/credential-already-in-use'?'This email credential belongs to another account. Keep using Google and review account setup; no accounts were merged.':authErrorMessage(error);
+    }finally{
+      AUTH_BUSY=false;
+      for(const id of ['ownerNewPassword','ownerConfirmPassword']){const el=document.getElementById(id);if(el)el.value='';}
+      const button=document.getElementById('ownerEmailSetupSave');if(button)button.disabled=false;
+    }
+  };
 }
 async function sendOwnerReset() {
   if(!AUTH||AUTH_BUSY)return;
@@ -3217,8 +3282,8 @@ function renderSettings(){
     <div class="card">
       <div class="card-head"><div class="card-title">Owner account</div></div>
       <p>Signed in as <b>${escapeHTML(currentUser()?.username||'')}</b>. Access is restricted to your approved Firebase account.</p>
-      <button class="btn" onclick="sendOwnerReset()">Send password reset email</button>
-      <p class="muted">Set your password privately from the email. Other users cannot grant themselves access.</p>
+      ${ownerHasEmailPassword()?'<p>Email and password sign-in is linked to this owner account.</p><button class="btn" onclick="sendOwnerReset()">Send password reset email</button>':'<button class="btn" onclick="openOwnerEmailSetup()">Add email sign-in</button>'}
+      <p class="muted">Google sign-in remains available. Password setup is private and applies to this same owner account.</p>
     </div>
 
     <div class="card">
@@ -5279,7 +5344,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-09-14-owner-sync-v1';
+  const BUILD_VERSION = '2026-09-15-owner-sync-email-project-fields-v4';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
