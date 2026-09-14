@@ -1,5 +1,5 @@
 // Scoped cache for this version; no business data or localStorage is reset.
-const CACHE = 'techtoys-projects-2026-09-14-v1';
+const CACHE = 'techtoys-owner-sync-2026-09-14-v1';
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['./','./index.html','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png']))); self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('message', event => { if(event.data?.type==='SKIP_WAITING')self.skipWaiting(); });
