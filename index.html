@@ -613,7 +613,8 @@ function portfolioNoticeState(){
   return 'missing';
 }
 function projectDataNote() {
-  const state=portfolioNoticeState(),messages={checking:'Checking your private cloud portfolio…',cloud:'Your completed portfolio is saved in your private cloud and available on your signed-in devices.',review:'Portfolio sync needs review. Both saved copies are retained; resolve the sync notice to continue.',pending:'Your completed portfolio is saved on this device. Waiting for private cloud sync.'};
+  const state=portfolioNoticeState(),messages={checking:'Checking your private cloud portfolio…',review:'Portfolio sync needs review. Both saved copies are retained; resolve the sync notice to continue.',pending:'Your completed portfolio is saved on this device. Waiting for private cloud sync.'};
+  if(state==='cloud')return '';
   if(messages[state])return `<div id="portfolioSyncNotice" class="project-notice" data-state="${state}" role="status">${messages[state]}</div>`;
   // Only a confirmed cloud read with no saved completed portfolio offers import.
   return '<div id="portfolioSyncNotice" class="project-notice" data-state="missing">Your completed portfolio is not in the private cloud yet. <button class="text-button" onclick="document.getElementById(\'privatePortfolioFile\').click()">Load portfolio</button><input id="privatePortfolioFile" type="file" accept="application/json,.json" hidden onchange="importPrivatePortfolio(this)"></div>';
@@ -5345,7 +5346,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-09-15-owner-sync-email-project-fields-rentals-v5';
+  const BUILD_VERSION = '2026-09-15-owner-sync-email-project-fields-rentals-clean-v6';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
