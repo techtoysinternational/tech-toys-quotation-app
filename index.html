@@ -313,19 +313,19 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 <!-- Login -->
 <div class="login-wrap" id="loginWrap">
   <div class="login-card">
-    <div class="login-logo">TECH TOYS</div>
-    <div class="login-tagline">Quotation System</div>
-    <div class="login-err" id="loginErr">Incorrect username or password</div>
+    <div class="login-logo">TECH TOYS</div><div class="login-tagline">Private quotation workspace</div>
+    <div class="login-err" id="loginErr" role="status">Preparing secure sign-in…</div>
     <form id="loginForm">
-      <label>Username</label>
-      <input type="text" id="loginUsername" autocomplete="username" required autofocus>
-      <label style="margin-top:14px">Password</label>
-      <input type="password" id="loginPwd" autocomplete="current-password" required>
-      <button class="btn btn-primary" type="submit" style="width:100%;margin-top:14px;justify-content:center">Sign in</button>
+      <label for="loginUsername">Owner email</label><input type="email" id="loginUsername" autocomplete="username" required autofocus>
+      <label for="loginPwd">Password</label><input type="password" id="loginPwd" autocomplete="current-password" required>
+      <button class="btn btn-primary" id="ownerSignIn" type="submit" style="width:100%;margin-top:16px">Sign in</button>
     </form>
-    <div class="login-hint">First time? Username: <b>admin</b> · Password: <b>techtoys</b><br>Manage users in Settings after login.</div>
+    <button class="btn" id="ownerGoogle" style="width:100%;margin-top:10px">Continue with Google</button>
+    <button class="text-button" onclick="sendOwnerReset()" style="margin-top:16px">Set or reset password by email</button>
+    <p class="login-hint">Only the approved owner can open this workspace.</p>
   </div>
 </div>
+
 
 <!-- App -->
 <div class="app" id="app">
@@ -339,7 +339,7 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
     <div class="nav-spacer"></div>
     <div class="nav-footer">
       <div class="user" id="navUser">Kunal Singh</div>
-      <div>v1.0 · Local</div>
+      <div>Private owner workspace</div>
       <button class="btn btn-sm btn-ghost" style="margin-top:6px;width:100%;justify-content:flex-start" onclick="logout()">↗ Sign out</button>
     </div>
   </aside>
@@ -379,17 +379,15 @@ const FIREBASE_CONFIG = {
 
 const SEED_DATA = {"version": 1, "company": {"name": "Tech Toys", "default_terms": "Review the applicable quotation terms."}, "quotes": [], "clients": [], "products": [], "leads": [], "rentals": [], "estimates": [], "users": []};
 const STORAGE_KEY = 'techToys_v1';
-const PWD_KEY = 'techToys_pwd';
 const BUILTIN_DEFAULT_TERMS = `· This quotation is valid for 30 days from date of issue.
 · 50% advance, balance on delivery.
 · Prices are inclusive of installation unless stated otherwise.`;
 const SESSION_KEY = 'techToys_session';
 const USER_KEY = 'techToys_currentUser';
 const USER_ROLES = ['Admin','Staff'];
-const DEFAULT_PWD_SHA = '972f20091e552900614c3b5f322dbee7004bd913c6d865d06360a3cf40cc129f'; // sha256 of 'techtoys'
 
 
-const PORTFOLIO_LOCAL_ONLY = true;
+const PORTFOLIO_LOCAL_ONLY = false;
 const PORTFOLIO_SOURCE = {"venues": []};
 /* Pure, additive portfolio migration. Existing business records are never rewritten. */
 const ProjectsCore = (() => {
@@ -586,8 +584,7 @@ async function importPrivatePortfolio(input){
     for(const [key,pid] of Object.entries(existing?.work_links||{}))if(remap[pid])incoming.work_links[key]=remap[pid];
     incoming.client_classifications={};incoming.data_origin='private-portfolio';
     next.portfolio=incoming;ProjectsCore.ensure(next,PORTFOLIO_SOURCE);
-    // Portfolio import changes only local metadata, never the shared cloud DB.
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(next));DB=next;renderProjects();toast('Private portfolio loaded on this device');
+    DB=next;saveDB();renderProjects();toast('Portfolio saved on this device and queued for private cloud sync');
   }catch(err){alert('Portfolio was not loaded: '+err.message);}
 }
 function projectAction(id, action = 'view') { return `data-project-action="${action}" data-project-id="${projectEscape(id)}"`; }
@@ -603,10 +600,9 @@ function bindProjectActions(root=document.getElementById('mainView')) {
 function projectSelect(options,value) { return options.map(v=>`<option value="${projectEscape(v)}" ${v===value?'selected':''}>${projectEscape(v || 'All')}</option>`).join(''); }
 function projectPill(p) { return `<span class="project-category ${p.category==='F&B'?'fnb':'non-fnb'}">${projectEscape(p.category)}</span>`; }
 function projectDataNote() {
-  if(typeof PORTFOLIO_LOCAL_ONLY!=='undefined' && PORTFOLIO_LOCAL_ONLY)return `<div class="project-notice">${DB.portfolio?.imports?.includes('completed-fnb-2026-09-14')?'Your private portfolio is loaded on this device.':'Load your private portfolio file to add completed venues and classify clients.'} Portfolio changes stay on this device. <button class="text-button" onclick="document.getElementById('privatePortfolioFile').click()">Load portfolio</button><input id="privatePortfolioFile" type="file" accept="application/json,.json" hidden onchange="importPrivatePortfolio(this)"></div>`;
-  if(DB.portfolio?.data_origin==='provided-backup')return '<div class="project-notice">This local copy includes your supplied 13 September backup: 32 quotations, including three dated 13 September. Changes here stay on this Mac; cloud synchronization is off.</div>';
-  return DB.portfolio?.data_origin==='bundled' ? '<div class="project-notice">This local copy started with the saved May 2026 quotation records. To use a newer dataset, export a backup from your existing app and use <button class="text-button" onclick="navigate(\'settings\')">Settings → Restore from backup</button>. Your current browser or cloud data has not been replaced.</div>' : '';
+  return `<div class="project-notice">${DB.portfolio?.imports?.includes('completed-fnb-2026-09-14')?'Your completed portfolio is included in private cloud sync.':'Load the completed portfolio once to sync it across your devices.'} <button class="text-button" onclick="document.getElementById('privatePortfolioFile').click()">Load portfolio</button><input id="privatePortfolioFile" type="file" accept="application/json,.json" hidden onchange="importPrivatePortfolio(this)"></div>`;
 }
+
 function renderProjects() {
   const ps=DB.portfolio.projects;
   const visible=ps.filter(p=>!p.archived);
@@ -777,279 +773,303 @@ async function saveAndPrintQuote(){
 }
 
 
+/* Three-way merging for the existing database. Conflicts never discard either copy. */
+const SecureMerge = (() => {
+  const copy = value => value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+  const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+  function equal(a,b) {
+    if(a===b)return true;
+    if(Array.isArray(a)&&Array.isArray(b))return a.length===b.length&&a.every((v,i)=>equal(v,b[i]));
+    if(object(a)&&object(b))return Object.keys(a).length===Object.keys(b).length&&Object.keys(a).every(k=>Object.hasOwn(b,k)&&equal(a[k],b[k]));
+    return false;
+  }
+  const idRows = rows => Array.isArray(rows) && rows.every(r=>object(r)&&typeof r.id==='string'&&r.id) && new Set(rows.map(r=>r.id)).size===rows.length;
+  function merge(base,local,remote) {
+    const conflicts=[];
+    function walk(b,l,r,path) {
+      if(equal(l,r))return copy(l);
+      if(equal(l,b))return copy(r);
+      if(equal(r,b))return copy(l);
+      // Bookkeeping timestamps do not represent competing business edits.
+      if(path==='updated'||path==='portfolio.updated')return [l,r].filter(v=>typeof v==='string').sort().at(-1);
+      if(path==='portfolio.data_origin')return 'cloud';
+      if(path==='portfolio.imports'&&[b,l,r].every(Array.isArray))return [...new Set([...l,...r])];
+      if(object(b)&&object(l)&&object(r)) {
+        const result={};
+        for(const k of new Set([...Object.keys(b),...Object.keys(l),...Object.keys(r)])) {
+          if(['__proto__','constructor','prototype'].includes(k))throw new Error('Unsupported record key. Original data retained.');
+          const value=walk(b[k],l[k],r[k],path?`${path}.${k}`:k);
+          if(value!==undefined)result[k]=value;
+        }
+        return result;
+      }
+      if([b,l,r].every(idRows)) {
+        const bm=new Map(b.map(v=>[v.id,v])),lm=new Map(l.map(v=>[v.id,v])),rm=new Map(r.map(v=>[v.id,v]));
+        const result=[];
+        // Preserve server ordering and append genuinely new local records.
+        for(const id of new Set([...r.map(v=>v.id),...l.map(v=>v.id),...b.map(v=>v.id)])) {
+          const value=walk(bm.get(id),lm.get(id),rm.get(id),`${path}[${id}]`);
+          if(value!==undefined)result.push(value);
+        }
+        return result;
+      }
+      conflicts.push(path||'database');
+      return copy(l);
+    }
+    const value=walk(base,local,remote,'');
+    return {value,conflicts};
+  }
+  // No shared ancestor exists on the first secure launch. Keep every server
+  // record authoritative and save divergent local records for explicit review.
+  function firstConnect(local,remote) {
+    const value=copy(remote), conflicts=[];
+    if(!local)return {value,conflicts};
+    for(const key of ['quotes','clients','products','rentals','leads','estimates']) {
+      for(const row of local[key]||[]) {
+        const current=(remote[key]||[]).find(r=>r.id===row.id);
+        if(!current||!equal(row,current))conflicts.push(`${key}[${row.id}]`);
+      }
+    }
+    if(local.portfolio?.projects?.length && !remote.portfolio?.projects?.length) {
+      value.portfolio=copy(local.portfolio);
+      // Identity checks prevent old quote links being applied to reused IDs.
+      for(const [id] of Object.entries(value.portfolio.quote_links||{})) {
+        const l=(local.quotes||[]).find(q=>q.id===id),r=(remote.quotes||[]).find(q=>q.id===id);
+        if(!l||!r||!equal([l.client_id,l.client,l.project_name],[r.client_id,r.client,r.project_name]))delete value.portfolio.quote_links[id];
+      }
+      for(const [key] of Object.entries(value.portfolio.work_links||{})) {
+        let id;try{[id]=JSON.parse(key);}catch{delete value.portfolio.work_links[key];continue;}
+        const l=(local.clients||[]).find(c=>c.id===id),r=(remote.clients||[]).find(c=>c.id===id);
+        if(!l||!r||l.name!==r.name)delete value.portfolio.work_links[key];
+      }
+    } else if(local.portfolio?.projects?.length&&!equal(local.portfolio,remote.portfolio))conflicts.push('portfolio');
+    // Unknown root fields and settings may contain local work too.
+    for(const key of Object.keys(local)) {
+      if(['quotes','clients','products','rentals','leads','estimates','portfolio','users','updated','version'].includes(key))continue;
+      if(!equal(local[key],remote[key]))conflicts.push(key);
+    }
+    return {value,conflicts};
+  }
+  return {copy,equal,merge,firstConnect};
+})();
+if(typeof module!=='undefined')module.exports=SecureMerge;
+
+let SECURE_EDIT_QUOTE_BASE=null;
+let SECURE_EDIT_LINK_BASE=null;
+function reconcileOpenQuote(draft) {
+  const current=DB.quotes.find(q=>q.id===draft.id);
+  let reason='',merged;
+  if(!SECURE_EDIT_QUOTE_BASE&&current)reason='This quotation identifier was created on another device while this form was open.';
+  else if(SECURE_EDIT_QUOTE_BASE&&!current)reason='This quotation was removed on another device while this form was open.';
+  else if(SECURE_EDIT_QUOTE_BASE) {
+    merged=SecureMerge.merge(SECURE_EDIT_QUOTE_BASE,draft,current);
+    if(merged.conflicts.length)reason='The same quotation fields changed on another device while this form was open.';
+  }
+  const picker=document.getElementById('eq_portfolio'),selected=picker?.value||null,currentLink=DB.portfolio?.quote_links?.[draft.id]||null;
+  if(picker&&selected!==SECURE_EDIT_LINK_BASE&&currentLink!==SECURE_EDIT_LINK_BASE&&selected!==currentLink)reason='The quotation’s portfolio link changed on another device while this form was open.';
+  if(reason){
+    projectStorageBackup(JSON.stringify({draft,current,base:SECURE_EDIT_QUOTE_BASE,portfolio_link:{draft:selected,current:currentLink,base:SECURE_EDIT_LINK_BASE}}),'quote-editor-review');
+    alert(reason+' Your draft and the current record have been retained for review. Close and reopen the quotation before saving again.');
+    return false;
+  }
+  if(merged){for(const key of Object.keys(draft))delete draft[key];Object.assign(draft,merged.value);}
+  if(picker&&selected===SECURE_EDIT_LINK_BASE)picker.value=currentLink||'';
+  return true;
+}
+
 let DB = null;
 let CURRENT_VIEW = 'dashboard';
 let CURRENT_PARAMS = '';
 
 /* -------- Storage -------- */
-function loadDB(){
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if(raw){
-    try{
-      DB = JSON.parse(raw);
-      ensureProjectMigration(DB, raw);
-      // migrate: ensure clients array exists, auto-seed from quote names if missing
-      if(!DB.clients){
-        DB.clients = [];
-        const seen = new Set();
-        let n = 1;
-        DB.quotes.forEach(q=>{
-          const key = (q.client||'').trim().toLowerCase();
-          if(!key || seen.has(key)) return;
-          seen.add(key);
-          const cid = `C${String(n++).padStart(4,'0')}`;
-          DB.clients.push({id:cid, name:q.client.trim(), contact_person:'', phone:'', email:'', address_l1:'', address_l2:'', city:'', state:'', pincode:'', gstin:'', pan:'', projects:[], notes:'', created:new Date().toISOString()});
-          q.client_id = cid;
-        });
-        // link any other quotes by name
-        const map = Object.fromEntries(DB.clients.map(c=>[c.name.toLowerCase(), c.id]));
-        DB.quotes.forEach(q=>{ if(!q.client_id) q.client_id = map[(q.client||'').toLowerCase()]; });
-        saveDB();
-      }
-      // migrate: convert legacy q.amount_paid number into a single payments[] entry
-      let migratedPayments = false;
-      DB.quotes.forEach(q=>{
-        if(!Array.isArray(q.payments)){
-          q.payments = [];
-          if((+q.amount_paid||0) > 0){
-            q.payments.push({
-              id: 'PMT' + Date.now() + Math.floor(Math.random()*1000),
-              date: (q.updated || q.created || new Date().toISOString()).slice(0,10),
-              amount: +q.amount_paid,
-              mode: 'Other',
-              ref: '',
-              note: 'Migrated from earlier Amount Paid field',
-            });
-          }
-          migratedPayments = true;
-        }
-      });
-      if(migratedPayments){ _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false; }
-      // Ensure leads array exists
-      if(!Array.isArray(DB.leads)){
-        DB.leads = [];
-        _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
-      }
-      // Ensure rentals array exists
-      if(!Array.isArray(DB.rentals)){
-        DB.rentals = [];
-        _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
-      }
-      // Ensure composite estimates array exists
-      if(!Array.isArray(DB.estimates)){
-        DB.estimates = [];
-        _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
-      }
-      // Ensure users array exists with a default admin matching the legacy single password
-      if(!Array.isArray(DB.users) || DB.users.length === 0){
-        const legacyHash = localStorage.getItem(PWD_KEY) || DEFAULT_PWD_SHA;
-        DB.users = [{
-          id: 'U0001',
-          username: 'admin',
-          password_hash: legacyHash,
-          role: 'Admin',
-          name: (DB.company && DB.company.contact_person) || 'Admin',
-          created: new Date().toISOString(),
-          active: true,
-        }];
-        _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
-      }
-      // Ensure company-wide default Terms & Conditions exist (used by Settings + print template)
-      if(!DB.company) DB.company = {};
-      if(!DB.company.default_terms){
-        DB.company.default_terms = BUILTIN_DEFAULT_TERMS;
-        _suppressAutoSnap = true; saveDB(); _suppressAutoSnap = false;
-      }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
-      return;
-    }catch(e){ console.error('Saved data was not loaded:', e.message); throw e; }
-  }
-  DB = JSON.parse(JSON.stringify(SEED_DATA));
-  ensureProjectMigration(DB, JSON.stringify(DB));
-  DB.portfolio.data_origin = 'empty-hosted';
-  saveDB();
-  loadDB();
+const CLOUD_COLLECTION='techtoys', CLOUD_DOC='appState';
+const SECURE_SYNC_STATE_KEY='techToys_secureSync_v1';
+let CLOUD_DB=null,CLOUD_READY=false,CLOUD_LOADING=false,CLOUD_IMPORTING=false,CLOUD_SAVE_TIMER=null,CLOUD_LAST_SAVE='';
+let SYNC_BASE=null,SYNC_DIRTY=false,SYNC_SAVING=false,SYNC_CONFLICT=null,SYNC_UNSUB=null,SYNC_ACCESS_UNSUB=null,SYNC_REVISION=0;
+let SYNC_DEFERRED=null,SYNC_ON_SNAPSHOT=null;
+function cloudStatusText(text) {
+  const footer=document.querySelector('.nav-footer');if(!footer)return;
+  let el=document.getElementById('cloudStatus');
+  if(!el){el=document.createElement('div');el.id='cloudStatus';el.style.cssText='margin-top:6px;font-size:11px';footer.appendChild(el);}
+  el.textContent=text;
 }
-function saveDB(){
-  ProjectsCore.ensure(DB, PORTFOLIO_SOURCE);
-  DB.updated = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
-  queueCloudSave();
-  maybeAutoSnapshot();
-}
-function resetDB(){
-  if(!confirm('This will erase all your changes and reload the cleaned 26-quote dataset (19 consolidated clients, 241 products). Continue?')) return;
-  localStorage.removeItem(STORAGE_KEY);
-  loadDB();
-  queueCloudSave(true);
-  toast('Reset to defaults');
-  navigate('dashboard');
-}
-
-/* -------- Firebase Cloud Sync (single shared database document) -------- */
-const CLOUD_COLLECTION = 'techtoys';
-const CLOUD_DOC = 'appState';
-let CLOUD_DB = null;
-let CLOUD_READY = false;
-let CLOUD_LOADING = false;
-let CLOUD_IMPORTING = false;
-let CLOUD_SAVE_TIMER = null;
-let CLOUD_LAST_SAVE = '';
-
-function cloudStatusText(txt){
-  const footer = document.querySelector('.nav-footer');
-  if(!footer) return;
-  let el = document.getElementById('cloudStatus');
-  if(!el){
-    el = document.createElement('div');
-    el.id = 'cloudStatus';
-    el.style.marginTop = '6px';
-    el.style.fontSize = '11px';
-    footer.appendChild(el);
-  }
-  el.textContent = txt;
-}
-
-async function loadCloudSdkForHostedApp(){
-  if(location.protocol !== 'https:' || ['localhost','127.0.0.1'].includes(location.hostname) || new URLSearchParams(location.search).has('local')) return false;
-  if(window.firebase && window.firebase.firestore) return true;
-  for(const url of ["https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js", "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"]){
-    await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>reject(new Error('Cloud library could not be loaded'));document.head.appendChild(s);});
+async function loadCloudSdkForHostedApp() {
+  if(location.protocol!=='https:'||['localhost','127.0.0.1'].includes(location.hostname))return false;
+  if(window.firebase?.auth&&window.firebase?.firestore)return true;
+  for(const name of ['app','auth','firestore']) {
+    await new Promise((resolve,reject)=>{
+      const script=document.createElement('script');script.src=`https://www.gstatic.com/firebasejs/10.12.0/firebase-${name}-compat.js`;
+      script.onload=resolve;script.onerror=()=>reject(new Error('Sign-in library unavailable'));document.head.appendChild(script);
+    });
   }
   return true;
 }
-
-async function initCloudSync(){
-  try { if(!await loadCloudSdkForHostedApp()){ cloudStatusText('Local copy · cloud sync off'); return; } } catch(err) { cloudStatusText('Cloud unavailable · local data retained'); return; }
-  if(CLOUD_LOADING || CLOUD_READY) return;
-  CLOUD_LOADING = true;
-  cloudStatusText('☁ Connecting to cloud…');
-  try{
-    if(!window.firebase || !firebase.firestore){
-      cloudStatusText('⚠ Cloud SDK not loaded');
-      console.warn('Firebase SDK not loaded. Data will stay local until Firebase loads.');
-      return;
-    }
-    if(!firebase.apps.length){ firebase.initializeApp(FIREBASE_CONFIG); }
-    CLOUD_DB = firebase.firestore();
-    try{ CLOUD_DB.enablePersistence && CLOUD_DB.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
-
-    const ref = CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC);
-
-    // Real-time listener: every device receives the same DB automatically.
-    if(window.__techToysCloudUnsub) window.__techToysCloudUnsub();
-    window.__techToysCloudUnsub = ref.onSnapshot(doc=>{
-      // Our own writes echo back instantly with hasPendingWrites=true.
-      // Importing that echo would swap DB and re-render mid-edit, wiping
-      // anything the user has typed since the save. Ignore it — the data
-      // is already ours.
-      if(CLOUD_READY && doc.metadata && doc.metadata.hasPendingWrites){
-        return;
-      }
-      if(doc.exists && doc.data() && doc.data().db){
-        const remoteDB = doc.data().db;
-        const remoteUpdated = remoteDB.updated || doc.data().updated_iso || '';
-
-        // Avoid unnecessary re-render loops from our own last save.
-        if(CLOUD_READY && remoteUpdated && remoteUpdated === CLOUD_LAST_SAVE){
-          cloudStatusText('☁ Saved to cloud');
-          return;
-        }
-
-        let incoming;
-        try {
-          incoming = JSON.parse(JSON.stringify(remoteDB));
-          ProjectsCore.validate(incoming);
-          // Older app versions may omit the additive portfolio namespace.
-          // Carry it only from a real saved dataset, never from the bundled demo.
-          if(!incoming.portfolio && DB.portfolio && !['bundled','provided-backup','empty-hosted'].includes(DB.portfolio.data_origin)){
-            incoming.portfolio = JSON.parse(JSON.stringify(DB.portfolio));
-            for(const q of incoming.quotes){
-              const old = DB.quotes.find(x=>x.id===q.id);
-              if(!old || old.client_id!==q.client_id || old.client!==q.client || old.project_name!==q.project_name) delete incoming.portfolio.quote_links[q.id];
-            }
-          }
-          ensureProjectMigration(incoming, JSON.stringify(remoteDB));
-          incoming.portfolio.data_origin = 'cloud';
-        } catch(err) {
-          CLOUD_LOADING = false;
-          cloudStatusText('Cloud data needs review · local data retained');
-          console.error('Cloud data was not applied:',err.message);
-          return;
-        }
-        CLOUD_IMPORTING = true;
-        DB = incoming;
-        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); loadDB(); }catch(e){ CLOUD_IMPORTING=false; CLOUD_LOADING=false; cloudStatusText('Local save failed · cloud data not edited'); return; }
-        CLOUD_IMPORTING = false;
-        const wasReady = CLOUD_READY;
-        CLOUD_READY = true;
-        CLOUD_LOADING = false;
-        CLOUD_LAST_SAVE = remoteUpdated;
-        cloudStatusText('☁ Live sync active');
-        // A genuine remote change while the user is mid-edit in the quote
-        // editor must not rebuild the form under them (editingQuote is a
-        // detached copy; Save upserts it by id into whatever DB is current).
-        if(wasReady && (CURRENT_VIEW==='new-quote' || CURRENT_VIEW==='edit-quote')){
-          cloudStatusText('☁ Synced (finish editing to see remote changes)');
-          return;
-        }
-        renderAfterCloudLoad();
-      } else {
-        CLOUD_READY = false;
-        CLOUD_LOADING = false;
-        cloudStatusText('Cloud database unavailable · local data retained');
-      }
-    }, err=>{
-      console.error('Cloud live sync failed:', err);
-      CLOUD_LOADING = false;
-      cloudStatusText('⚠ Cloud error — using local cache');
-      toast('Cloud connection failed. Check Firestore rules.');
-    });
-  }catch(err){
-    console.error('Cloud init failed:', err);
-    CLOUD_LOADING = false;
-    cloudStatusText('⚠ Cloud init failed');
+function syncCopy(value){return SecureMerge.copy(value);}
+function syncBackup(value,reason) {
+  if(value)projectStorageBackup(JSON.stringify(value),reason);
+}
+function syncState() {
+  if(!AUTH_OWNER)return;
+  localStorage.setItem(SECURE_SYNC_STATE_KEY,JSON.stringify({uid:AUTH_OWNER.uid,base:SYNC_BASE,revision:SYNC_REVISION,dirty:SYNC_DIRTY}));
+}
+function stopCloudSync() {
+  clearTimeout(CLOUD_SAVE_TIMER);CLOUD_SAVE_TIMER=null;
+  if(SYNC_UNSUB)SYNC_UNSUB();SYNC_UNSUB=null;
+  if(SYNC_ACCESS_UNSUB)SYNC_ACCESS_UNSUB();SYNC_ACCESS_UNSUB=null;
+  SYNC_DEFERRED=null;SYNC_ON_SNAPSHOT=null;
+  CLOUD_READY=false;CLOUD_LOADING=false;
+}
+function loadDB() {
+  // Hosted startup never creates users, runs historical record patches, or
+  // initializes a missing database. Keep the original cache intact until read.
+  const raw=localStorage.getItem(STORAGE_KEY);
+  DB=raw?JSON.parse(raw):null;
+  if(DB)ProjectsCore.validate(DB);
+}
+function saveDB() {
+  if(!AUTH_OWNER||!CLOUD_READY||!DB)throw new Error('Sign in and load the existing database before saving.');
+  ProjectsCore.ensure(DB,PORTFOLIO_SOURCE);
+  DB.updated=new Date().toISOString();
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(DB));
+  if(SYNC_CONFLICT)SYNC_CONFLICT.local=syncCopy(DB);
+  SYNC_DIRTY=true;syncState();queueCloudSave();maybeAutoSnapshot();
+}
+function resetDB(){toast('Cloud records are preserved. Use a reviewed backup restore when needed.');}
+function applySyncedDB(value,render=true) {
+  ProjectsCore.validate(value);
+  const next=syncCopy(value);
+  ProjectsCore.ensure(next,PORTFOLIO_SOURCE);
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(next));DB=next;
+  if(render&&isLoggedIn()) {
+    if(CURRENT_VIEW==='new-quote'||CURRENT_VIEW==='edit-quote')return;
+    renderAfterCloudLoad();
   }
 }
-
-function renderAfterCloudLoad(){
-  if(!DB) return;
-  document.getElementById('navUser').textContent = (DB.company && (DB.company.contact_person || DB.company.name)) || 'Tech Toys';
-  renderFYSelector();
-  const [view, param] = parseHash();
-  navigate(view, param);
+function renderAfterCloudLoad() {
+  if(!DB||!isLoggedIn())return;
+  document.getElementById('navUser').textContent=AUTH_OWNER.username;
+  renderFYSelector();const [view,param]=parseHash();navigate(view,param);
 }
-
-function queueCloudSave(immediate=false){
-  if(CLOUD_IMPORTING || !DB) return;
-  // Every caller has already persisted DB to localStorage (via saveDB or the
-  // import path), so skip the second full-DB serialization per save.
-  if(!CLOUD_READY || !CLOUD_DB) return;
-  clearTimeout(CLOUD_SAVE_TIMER);
-  const doSave = async ()=>{
-    try{
-      DB.updated = new Date().toISOString();
-      // Mark our own save BEFORE the write: the snapshot listener can fire
-      // with this write before set() resolves, and it must recognise it.
-      CLOUD_LAST_SAVE = DB.updated;
-      const payload = JSON.parse(JSON.stringify(DB));
-      delete payload.portfolio;
-      delete payload.portfolio_source;
-      await CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC).set({
-        db: payload,
-        updated: firebase.firestore.FieldValue.serverTimestamp(),
-        updated_iso: DB.updated,
-        client_hint: navigator.userAgent || 'browser'
-      }, { merge: true });
-      cloudStatusText('☁ Saved to cloud');
-    }catch(err){
-      console.error('Cloud save failed:', err);
-      cloudStatusText('⚠ Cloud save failed — local backup kept');
-      toast('Cloud save failed. Data is still saved locally.');
-    }
+function syncProblem(local,remote,conflicts,initial=false) {
+  syncBackup(local,'sync-local-review');syncBackup(remote,'sync-cloud-review');
+  SYNC_CONFLICT={local:syncCopy(local),remote:syncCopy(remote),conflicts,initial};
+  cloudStatusText('Sync paused · both copies retained');
+  let notice=document.getElementById('syncReview');
+  if(!notice){notice=document.createElement('div');notice.id='syncReview';notice.className='project-notice';notice.style.cssText='position:fixed;bottom:16px;right:16px;max-width:560px;z-index:900;box-shadow:var(--shadow)';document.getElementById('app').appendChild(notice);}
+  notice.textContent=`Sync paused: ${conflicts.length} overlapping or unverified change(s). Both copies are retained. `;
+  const download=document.createElement('button');download.className='btn btn-sm';download.textContent='Download both copies';
+  download.onclick=()=>projectDownload(JSON.stringify(SYNC_CONFLICT,null,2),'tech-toys-sync-review-private.json');notice.append(download);
+  const resume=document.createElement('button');resume.className='btn btn-sm';resume.textContent='Use current cloud copy';
+  resume.onclick=()=>{
+    if(!confirm('Keep a safety backup of this device’s copy and continue with the current cloud copy? Unsynced local differences stay in the backup for review.'))return;
+    syncBackup(DB,'before-use-cloud');applySyncedDB(SYNC_CONFLICT.remote);
+    SYNC_BASE=syncCopy(SYNC_CONFLICT.remote);SYNC_DIRTY=false;SYNC_CONFLICT=null;syncState();notice.remove();cloudStatusText('Cloud copy loaded');
+  };notice.append(resume);
+}
+async function initCloudSync() {
+  if(!AUTH_OWNER||CLOUD_LOADING||CLOUD_READY)return;
+  CLOUD_LOADING=true;const epoch=AUTH_EPOCH,uid=AUTH_OWNER.uid;
+  const ref=CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC);
+  let state=null;
+  try{state=JSON.parse(localStorage.getItem(SECURE_SYNC_STATE_KEY)||'null');}catch{state=null;}
+  // A cached ancestor is valid only for the same authenticated owner.
+  SYNC_BASE=state?.uid===uid?state.base:null;SYNC_DIRTY=!!(state?.uid===uid&&state.dirty);
+  SYNC_CONFLICT=null;
+  const first=await ref.get({source:'server'});
+  if(epoch!==AUTH_EPOCH)return;
+  if(!first.exists||!first.data()?.db){CLOUD_LOADING=false;throw new Error('Existing database unavailable');}
+  const remote=syncCopy(first.data().db);ProjectsCore.validate(remote);
+  syncBackup(remote,'before-secure-sync-cloud');if(DB)syncBackup(DB,'before-secure-sync-device');
+  const local=syncCopy(DB);
+  const result=SYNC_BASE&&DB?SecureMerge.merge(SYNC_BASE,DB,remote):SecureMerge.firstConnect(DB,remote);
+  SYNC_REVISION=first.data().revision||0;
+  SYNC_BASE=syncCopy(remote);CLOUD_LOADING=false;CLOUD_READY=true;
+  // On first-connection differences, do not silently choose a record winner.
+  applySyncedDB(result.conflicts.length?remote:result.value,false);
+  SYNC_DIRTY=!SecureMerge.equal(DB,remote);syncState();showApp();
+  if(result.conflicts.length)syncProblem(local,remote,result.conflicts,true);
+  else cloudStatusText('Owner-only cloud sync active');
+  SYNC_ACCESS_UNSUB=CLOUD_DB.collection('appAccess').doc(uid).onSnapshot(doc=>{
+    if(epoch!==AUTH_EPOCH||doc.metadata?.fromCache)return;
+    if(!doc.exists||doc.data().role!=='owner'||doc.data().active!==true)revokeOwnerView();
+  },()=>{if(epoch===AUTH_EPOCH)revokeOwnerView();});
+  SYNC_ON_SNAPSHOT=doc=>{
+    if(epoch!==AUTH_EPOCH||doc.metadata?.hasPendingWrites||doc.metadata?.fromCache||!CLOUD_READY)return;
+    if(!doc.exists||!doc.data()?.db){cloudStatusText('Cloud database unavailable · local copy retained');return;}
+    if((doc.data().revision||0)<SYNC_REVISION)return;
+    if(SYNC_SAVING){SYNC_DEFERRED=doc;return;}
+    try {
+      const latest=syncCopy(doc.data().db);ProjectsCore.validate(latest);
+      if(SYNC_CONFLICT){SYNC_CONFLICT.remote=latest;return;}
+      const merged=SecureMerge.merge(SYNC_BASE,DB,latest);
+      if(merged.conflicts.length){syncProblem(DB,latest,merged.conflicts);return;}
+      SYNC_BASE=latest;SYNC_REVISION=doc.data().revision||0;
+      applySyncedDB(merged.value);SYNC_DIRTY=!SecureMerge.equal(DB,SYNC_BASE);syncState();
+      cloudStatusText(SYNC_DIRTY?'Changes saved on device · syncing…':'Owner-only cloud sync active');
+      if(SYNC_DIRTY)queueCloudSave();
+    }catch{cloudStatusText('Cloud data needs review · device copy retained');}
   };
-  CLOUD_SAVE_TIMER = setTimeout(doSave, immediate ? 0 : 400);
+  SYNC_UNSUB=ref.onSnapshot({includeMetadataChanges:true},SYNC_ON_SNAPSHOT,error=>{
+    if(epoch!==AUTH_EPOCH)return;
+    if(error.code==='permission-denied'||error.code==='unauthenticated')revokeOwnerView();
+    else cloudStatusText('Offline · changes retained on this device');
+  });
+  if(SYNC_DIRTY&&!SYNC_CONFLICT)queueCloudSave();
 }
+function revokeOwnerView() {
+  AUTH_EPOCH++;stopCloudSync();AUTH_OWNER=null;
+  hidePrivateViews();loginMessage('Owner access is no longer active. Saved device data is retained.');
+}
+function queueCloudSave(immediate=false) {
+  if(CLOUD_IMPORTING||!DB||!AUTH_OWNER||!CLOUD_READY||SYNC_CONFLICT)return;
+  SYNC_DIRTY=true;syncState();clearTimeout(CLOUD_SAVE_TIMER);
+  if(SYNC_SAVING)return;
+  CLOUD_SAVE_TIMER=setTimeout(flushOwnerSave,immediate?0:400);
+}
+async function flushOwnerSave() {
+  if(!AUTH_OWNER||!CLOUD_READY||SYNC_SAVING||SYNC_CONFLICT||!SYNC_DIRTY)return;
+  const epoch=AUTH_EPOCH,base=syncCopy(SYNC_BASE),local=syncCopy(DB);let successful=false;
+  const ref=CLOUD_DB.collection(CLOUD_COLLECTION).doc(CLOUD_DOC);
+  SYNC_SAVING=true;
+  try {
+    const committed=await CLOUD_DB.runTransaction(async transaction=>{
+      if(epoch!==AUTH_EPOCH||!AUTH_OWNER)throw new Error('Signed out');
+      const current=await transaction.get(ref);
+      if(!current.exists||!current.data()?.db)throw new Error('Existing database missing');
+      const remote=syncCopy(current.data().db);ProjectsCore.validate(remote);
+      const merged=SecureMerge.merge(base,local,remote);
+      if(merged.conflicts.length){const error=new Error('Overlapping changes');error.conflict={remote,paths:merged.conflicts};throw error;}
+      // A lost network response may cause a retry after the server committed.
+      if(SecureMerge.equal(merged.value,remote))return {db:remote,revision:current.data().revision||0};
+      ProjectsCore.validate(merged.value);
+      const revision=(current.data().revision||0)+1;
+      transaction.update(ref,{db:merged.value,updated:firebase.firestore.FieldValue.serverTimestamp(),updated_iso:merged.value.updated||new Date().toISOString(),revision});
+      return {db:merged.value,revision};
+    });
+    if(epoch!==AUTH_EPOCH)return;
+    successful=true;
+    const later=SecureMerge.merge(local,DB,committed.db);
+    SYNC_BASE=syncCopy(committed.db);SYNC_REVISION=committed.revision;
+    if(later.conflicts.length){syncProblem(DB,committed.db,later.conflicts);return;}
+    applySyncedDB(later.value);SYNC_DIRTY=!SecureMerge.equal(DB,SYNC_BASE);syncState();
+    cloudStatusText(SYNC_DIRTY?'Newer edits saved on device · syncing…':'Saved to your private cloud');
+  }catch(error){
+    if(epoch!==AUTH_EPOCH)return;
+    if(error.conflict)syncProblem(DB,error.conflict.remote,error.conflict.paths);
+    else if(error.code==='permission-denied'||error.code==='unauthenticated')revokeOwnerView();
+    else cloudStatusText('Sync unavailable · changes retained on this device');
+  }finally{
+    SYNC_SAVING=false;
+    if(SYNC_DEFERRED&&SYNC_ON_SNAPSHOT){const deferred=SYNC_DEFERRED;SYNC_DEFERRED=null;SYNC_ON_SNAPSHOT(deferred);}
+    // Retry only on a new edit or an online/snapshot event after a failure.
+  }
+  if(successful&&epoch===AUTH_EPOCH&&SYNC_DIRTY&&!SYNC_CONFLICT&&AUTH_OWNER) {
+    // A new edit made during a successful transaction needs its own commit.
+    if(!SecureMerge.equal(local,DB))queueCloudSave();
+  }
+}
+window.addEventListener('online',()=>{if(AUTH_OWNER&&SYNC_DIRTY)queueCloudSave(true);});
+
 
 /* -------- Snapshots (versioned saves) -------- */
 const SNAPSHOTS_KEY = 'techToys_snapshots';
@@ -1275,71 +1295,87 @@ function fyLabel(){
   return CURRENT_FY === 'all' ? 'All Time' : activeFY();
 }
 
-/* -------- Auth -------- */
-async function sha256(s){
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+/* Firebase Authentication is the only hosted login authority. No password is
+   stored in the app database, source code, browser storage or diagnostic logs. */
+let AUTH=null, AUTH_OWNER=null, AUTH_BUSY=false, AUTH_EPOCH=0;
+function loginMessage(message) {
+  const el=document.getElementById('loginErr');
+  el.textContent=message;el.style.display=message?'block':'none';
 }
-async function login(username, pwd){
-  // Multi-user login. Falls back to the legacy single-password check
-  // if DB.users hasn't been migrated yet (first load on a fresh device).
-  const h = await sha256(pwd);
-  const uname = (username||'').trim().toLowerCase();
-  if(Array.isArray(DB && DB.users) && DB.users.length){
-    const user = DB.users.find(u =>
-      (u.username||'').toLowerCase() === uname &&
-      u.password_hash === h &&
-      u.active !== false
-    );
-    if(user){
-      sessionStorage.setItem(SESSION_KEY, '1');
-      sessionStorage.setItem(USER_KEY, JSON.stringify({
-        id: user.id, username: user.username, role: user.role, name: user.name||user.username
-      }));
-      return user;
-    }
-    return null;
-  }
-  // Legacy fallback (pre-multi-user): accept any username if password matches the single stored hash.
-  const stored = localStorage.getItem(PWD_KEY) || DEFAULT_PWD_SHA;
-  if(h === stored){
-    sessionStorage.setItem(SESSION_KEY, '1');
-    sessionStorage.setItem(USER_KEY, JSON.stringify({
-      id: 'U0001', username: uname || 'admin', role: 'Admin', name: 'Admin'
-    }));
-    return { id: 'U0001', username: uname || 'admin', role: 'Admin' };
-  }
-  return null;
+function authErrorMessage(error) {
+  const code=error?.code||'';
+  if(code.includes('network'))return 'Cannot reach sign-in. Check your connection; saved data is retained.';
+  if(code.includes('too-many-requests'))return 'Too many attempts. Please wait before trying again.';
+  if(code.includes('operation-not-allowed')||code.includes('unauthorized-domain'))return 'Owner sign-in setup is not complete. No business data has been changed.';
+  return 'Sign-in was not completed. Check your owner account and try again.';
 }
-function isLoggedIn(){ return sessionStorage.getItem(SESSION_KEY) === '1'; }
-function currentUser(){
-  try { return JSON.parse(sessionStorage.getItem(USER_KEY) || 'null'); }
-  catch(e){ return null; }
+function isLoggedIn(){return !!AUTH_OWNER;}
+function currentUser(){return AUTH_OWNER?{id:AUTH_OWNER.uid,username:AUTH_OWNER.username,name:AUTH_OWNER.username,role:'Admin'}:null;}
+function isAdmin(){return !!AUTH_OWNER;}
+function hidePrivateViews(){
+  document.getElementById('app').classList.remove('show');
+  for(const id of ['mainView','modal','print-area'])document.getElementById(id).textContent='';
+  document.getElementById('modalWrap').classList.remove('show');
+  document.getElementById('syncReview')?.remove();
+  document.getElementById('loginWrap').style.display='flex';
 }
-function isAdmin(){
-  const u = currentUser();
-  return !!(u && u.role === 'Admin');
+function ensureUsers(){if(!Array.isArray(DB.users))DB.users=[];}
+async function login(email,password) {
+  if(!AUTH)throw new Error('Sign-in is not ready');
+  // Existing credentials go directly to Firebase Authentication.
+  return AUTH.signInWithEmailAndPassword(email.trim(),password);
 }
-function logout(){
-  sessionStorage.removeItem(SESSION_KEY);
-  sessionStorage.removeItem(USER_KEY);
-  location.reload();
+async function sendOwnerReset() {
+  if(!AUTH||AUTH_BUSY)return;
+  const email=AUTH.currentUser?.email||document.getElementById('loginUsername').value.trim();
+  if(!email||!email.includes('@')){loginMessage('Enter your owner email address to request a password reset.');return;}
+  AUTH_BUSY=true;
+  try {
+    await AUTH.sendPasswordResetEmail(email,{url:'https://techtoysinternational.github.io/tech-toys-quotation-app/'});
+    const message='If this account supports password sign-in, a reset email has been sent. Set the password privately from that email.';
+    if(AUTH_OWNER)toast(message);else loginMessage(message);
+  }catch(error){loginMessage(authErrorMessage(error));}
+  finally{AUTH_BUSY=false;}
 }
-async function changePwd(oldP, newP){
-  // Change password for the CURRENT logged-in user.
-  const me = currentUser();
-  if(!me) return false;
-  ensureUsers();
-  const user = DB.users.find(u => u.id === me.id);
-  if(!user) return false;
-  const oldH = await sha256(oldP);
-  if(user.password_hash !== oldH) return false;
-  user.password_hash = await sha256(newP);
-  user.updated = new Date().toISOString();
-  saveDB();
-  return true;
+async function logout() {
+  const pending=SYNC_DIRTY||SYNC_SAVING||SYNC_CONFLICT;
+  if(pending&&!confirm('Some changes are saved on this device but not yet synced. Keep the private local copy and sign out?'))return;
+  AUTH_EPOCH++;stopCloudSync();AUTH_OWNER=null;
+  hidePrivateViews();
+  if(AUTH)await AUTH.signOut();
+  DB=null;
+  sessionStorage.removeItem(SESSION_KEY);sessionStorage.removeItem(USER_KEY);
+  loginMessage('Signed out. Your saved device copy is retained.');
 }
-function ensureUsers(){ if(!Array.isArray(DB.users)) DB.users = []; }
+async function initOwnerAccess() {
+  try {
+    if(!await loadCloudSdkForHostedApp()) {loginMessage('Open the published HTTPS app to sign in. This private test build does not connect from a local file.');return;}
+    if(!firebase.apps.length)firebase.initializeApp(FIREBASE_CONFIG);
+    AUTH=firebase.auth();CLOUD_DB=firebase.firestore();
+    await AUTH.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    AUTH.onAuthStateChanged(async user=>{
+      const epoch=++AUTH_EPOCH;
+      stopCloudSync();AUTH_OWNER=null;
+      hidePrivateViews();
+      if(!user){loginMessage('Sign in with your approved owner account.');return;}
+      if(!user.emailVerified){loginMessage('Verify your email using Firebase’s verification email, then sign in again.');return;}
+      try {
+        const membership=await CLOUD_DB.collection('appAccess').doc(user.uid).get({source:'server'});
+        if(epoch!==AUTH_EPOCH)return;
+        const access=membership.exists&&membership.data();
+        if(!access||access.role!=='owner'||access.active!==true||typeof access.username!=='string')throw new Error('Owner approval missing');
+        AUTH_OWNER={uid:user.uid,username:access.username};
+        loadDB();
+        await initCloudSync();
+      }catch(error){
+        if(epoch!==AUTH_EPOCH)return;
+        AUTH_OWNER=null;
+        loginMessage('Owner access could not be confirmed. Check account setup and connection. Saved data has not been replaced.');
+      }
+    });
+  }catch(error){loginMessage(authErrorMessage(error));}
+}
+
 
 /* -------- Utilities -------- */
 const inrWholeFormatter = new Intl.NumberFormat('en-IN', {maximumFractionDigits:0});
@@ -2248,6 +2284,8 @@ function nextPiNo(){
 let editingQuote = null;
 
 function renderNewQuote(id){
+  SECURE_EDIT_QUOTE_BASE=id?syncCopy(DB.quotes.find(q=>q.id===id)):null;
+  SECURE_EDIT_LINK_BASE=id?(DB.portfolio?.quote_links?.[id]||null):null;
   if(id){
     editingQuote = JSON.parse(JSON.stringify(DB.quotes.find(x=>x.id===id) || {}));
   } else {
@@ -2703,6 +2741,7 @@ function saveQuote(forPrint=false){
     alert('Linked client no longer exists. Please pick a client again.');
     return;
   }
+  if(!reconcileOpenQuote(q))return;
   q.client = linked.name; // keep denormalised cache in sync with the linked record
   // Project name is optional — encouraged for clarity but allowed blank (e.g. RENTAL quotes)
   if(q.project_name){
@@ -3176,47 +3215,10 @@ function renderSettings(){
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">Change your password</div></div>
-      <div class="muted" style="margin-bottom:10px;font-size:13px">Signed in as <b>${escapeHTML((currentUser()||{}).username||'')}</b> · ${escapeHTML((currentUser()||{}).role||'')}</div>
-      <div class="form-grid">
-        <div class="field"><label>Current password</label><input id="s_op" type="password"></div>
-        <div class="field"><label>New password</label><input id="s_np" type="password"></div>
-      </div>
-      <button class="btn btn-primary" style="margin-top:14px" onclick="doChangePwd()">Change password</button>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <div class="card-title">User management</div>
-          <div class="card-sub">Admin only — add users and assign access levels</div>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="openUserModal()">➕ Add User</button>
-      </div>
-      ${(()=>{
-        ensureUsers();
-        const me = currentUser();
-        if(DB.users.length === 0) return '<div class="empty">No users yet.</div>';
-        return `<table class="tbl">
-          <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead>
-          <tbody>
-            ${DB.users.map(u=>`<tr>
-              <td><b>${escapeHTML(u.username)}</b>${me && u.id===me.id?' <span class="tag" style="font-size:10px">you</span>':''}</td>
-              <td>${escapeHTML(u.name||'—')}</td>
-              <td><span class="pill ${u.role==='Admin'?'pill-won':'pill-sent'}">${escapeHTML(u.role||'Staff')}</span></td>
-              <td>${u.active===false?'<span class="pill pill-lost">Inactive</span>':'<span class="pill pill-paid">Active</span>'}</td>
-              <td class="muted">${fmtDate(u.created)}</td>
-              <td><div class="row" style="gap:4px">
-                <button class="btn btn-sm" onclick="openUserModal('${u.id}')">✏ Edit</button>
-                ${me && u.id===me.id ? '' : `<button class="btn btn-icon btn-ghost" title="Delete" onclick="deleteUser('${u.id}')">×</button>`}
-              </div></td>
-            </tr>`).join('')}
-          </tbody>
-        </table>`;
-      })()}
-      <div class="muted" style="margin-top:10px;font-size:12px">
-        <b>Roles:</b> <b>Admin</b> = full access including Settings and user management. <b>Staff</b> = can use Dashboard, Leads, Quotes, Rentals, Clients, Products — cannot access Settings.
-      </div>
+      <div class="card-head"><div class="card-title">Owner account</div></div>
+      <p>Signed in as <b>${escapeHTML(currentUser()?.username||'')}</b>. Access is restricted to your approved Firebase account.</p>
+      <button class="btn" onclick="sendOwnerReset()">Send password reset email</button>
+      <p class="muted">Set your password privately from the email. Other users cannot grant themselves access.</p>
     </div>
 
     <div class="card">
@@ -3226,7 +3228,6 @@ function renderSettings(){
         <button class="btn" onclick="exportData()">⬇ Download backup (JSON)</button>
         <button class="btn" onclick="document.getElementById('importFile').click()">⬆ Restore from backup</button>
         <input id="importFile" type="file" accept=".json" style="display:none" onchange="importData(this.files[0])">
-        <button class="btn btn-danger" onclick="resetDB()">↻ Reset to defaults</button>
       </div>
     </div>
 
@@ -3300,14 +3301,8 @@ function saveCompany(){
   toast('Saved');
   document.getElementById('navUser').textContent = c.contact_person || c.name;
 }
-async function doChangePwd(){
-  const o = document.getElementById('s_op').value;
-  const n = document.getElementById('s_np').value;
-  if(!n || n.length < 4){ alert('New password must be at least 4 characters'); return; }
-  const ok = await changePwd(o, n);
-  if(ok){ toast('Password changed'); document.getElementById('s_op').value=''; document.getElementById('s_np').value=''; }
-  else { alert('Current password incorrect'); }
-}
+// Password changes use the Firebase reset email flow.
+
 function exportData(){
   const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
@@ -5247,178 +5242,44 @@ function deleteRental(id){
 /* ============================================================
    USER MANAGEMENT — admin-only CRUD for app users
    ============================================================ */
-function nextUserId(){
-  ensureUsers();
-  let n = 1;
-  while(DB.users.find(u=>u.id===`U${String(n).padStart(4,'0')}`)) n++;
-  return `U${String(n).padStart(4,'0')}`;
-}
-
-function openUserModal(id){
-  if(!isAdmin()){ toast('Admin access required', 'error'); return; }
-  ensureUsers();
-  const editing = id ? DB.users.find(u=>u.id===id) : null;
-  const u = editing || { username:'', name:'', role:'Staff', active:true };
-  openModal(`
-    <div class="modal-head">
-      <div class="modal-title">${editing ? 'Edit User' : 'Add User'}</div>
-      <button class="btn btn-icon btn-ghost" onclick="closeModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <div class="form-grid">
-        <div class="field"><label>Username *</label><input id="eu_un" value="${escapeHTML(u.username||'')}" placeholder="e.g. kunal" autocomplete="off" ${editing?'readonly style="opacity:0.6"':''}></div>
-        <div class="field"><label>Display Name</label><input id="eu_nm" value="${escapeHTML(u.name||'')}" placeholder="e.g. Kunal Singh"></div>
-        <div class="field"><label>Role *</label>
-          <select id="eu_rl">${USER_ROLES.map(r=>`<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('')}</select>
-          <div class="field-help">Admin = full access. Staff = no Settings access.</div>
-        </div>
-        <div class="field"><label>Status</label>
-          <select id="eu_ac">
-            <option value="true" ${u.active!==false?'selected':''}>Active</option>
-            <option value="false" ${u.active===false?'selected':''}>Inactive (cannot sign in)</option>
-          </select>
-        </div>
-        <div class="field full"><label>${editing?'New password (leave blank to keep current)':'Password *'}</label><input id="eu_pw" type="password" autocomplete="new-password" placeholder="${editing?'•••••• (unchanged)':'At least 4 characters'}"></div>
-      </div>
-      ${editing?`<div class="muted" style="font-size:11px;margin-top:10px">User ID: ${escapeHTML(editing.id)} · Created ${fmtDate(editing.created)}${editing.updated?` · Updated ${fmtDate(editing.updated)}`:''}</div>`:''}
-    </div>
-    <div class="modal-foot">
-      ${editing && currentUser() && editing.id !== currentUser().id ? `<button class="btn btn-danger" style="margin-right:auto" onclick="deleteUser('${editing.id}')">🗑 Delete</button>` : ''}
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveUser('${editing?editing.id:''}')">${editing?'Save':'Create user'}</button>
-    </div>
-  `);
-}
-
-async function saveUser(id){
-  if(!isAdmin()){ toast('Admin access required', 'error'); return; }
-  ensureUsers();
-  const username = document.getElementById('eu_un').value.trim();
-  const name = document.getElementById('eu_nm').value.trim();
-  const role = document.getElementById('eu_rl').value;
-  const active = document.getElementById('eu_ac').value === 'true';
-  const pwd = document.getElementById('eu_pw').value;
-
-  if(!username){ alert('Username is required'); return; }
-  if(!USER_ROLES.includes(role)){ alert('Invalid role'); return; }
-
-  // Username uniqueness (case-insensitive, excluding self when editing)
-  const dup = DB.users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.id !== id);
-  if(dup){ alert('That username is already taken.'); return; }
-
-  if(id){
-    const u = DB.users.find(x=>x.id===id);
-    if(!u){ alert('User not found'); return; }
-    // Username cannot change on edit (input is readonly). Keep stored value.
-    u.name = name;
-    u.role = role;
-    u.active = active;
-    if(pwd){
-      if(pwd.length < 4){ alert('Password must be at least 4 characters'); return; }
-      u.password_hash = await sha256(pwd);
-    }
-    u.updated = new Date().toISOString();
-    // Safety: don't let admin demote themselves to Staff and lock everyone out.
-    const me = currentUser();
-    if(me && u.id === me.id && role !== 'Admin'){
-      const otherAdmins = DB.users.filter(x => x.role === 'Admin' && x.id !== u.id && x.active !== false).length;
-      if(otherAdmins === 0){
-        alert('You cannot demote yourself — you are the only active Admin.');
-        u.role = 'Admin';
-      } else {
-        // Refresh session role
-        sessionStorage.setItem(USER_KEY, JSON.stringify({...me, role: role}));
-      }
-    }
-    saveDB();
-    toast('User updated');
-  } else {
-    if(!pwd){ alert('Password is required for a new user'); return; }
-    if(pwd.length < 4){ alert('Password must be at least 4 characters'); return; }
-    DB.users.push({
-      id: nextUserId(),
-      username, name, role, active,
-      password_hash: await sha256(pwd),
-      created: new Date().toISOString(),
-    });
-    saveDB();
-    toast('User created');
-  }
-  closeModal();
-  if(CURRENT_VIEW === 'settings') renderSettings();
-}
-
-function deleteUser(id){
-  if(!isAdmin()){ toast('Admin access required', 'error'); return; }
-  ensureUsers();
-  const me = currentUser();
-  if(me && id === me.id){ alert('You cannot delete the user you are currently signed in as.'); return; }
-  const u = DB.users.find(x=>x.id===id);
-  if(!u) return;
-  // Don't allow deleting the last active admin
-  if(u.role === 'Admin' && u.active !== false){
-    const otherAdmins = DB.users.filter(x => x.role === 'Admin' && x.id !== id && x.active !== false).length;
-    if(otherAdmins === 0){ alert('Cannot delete the last active Admin.'); return; }
-  }
-  if(!confirm(`Delete user "${u.username}"? This cannot be undone.`)) return;
-  DB.users = DB.users.filter(x=>x.id!==id);
-  saveDB();
-  toast('User deleted');
-  closeModal();
-  if(CURRENT_VIEW === 'settings') renderSettings();
-}
+// Account access is managed by Firebase; historical users are retained as data only.
 
 /* ============================================================
    BOOT
    ============================================================ */
-// Load DB eagerly so the login form can check usernames against DB.users.
-// (The data here lives entirely in the browser; there is no server-side
-// secret. Loading it before authentication does not change the security
-// model — it just lets multi-user lookup work on first sign-in.)
-let DATABASE_LOAD_ERROR = null;
-try { loadDB(); } catch(err) { DATABASE_LOAD_ERROR=err;document.getElementById('loginWrap').style.display='none';document.getElementById('app').classList.add('show');document.getElementById('mainView').innerHTML='<div class="card"><h2>Saved data needs attention</h2><p>Your saved data has not been replaced. '+escapeHTML(err.message)+'</p><button class="btn" id="downloadRetainedData">Download retained saved data</button></div>';document.getElementById('downloadRetainedData').onclick=()=>projectDownload(localStorage.getItem(STORAGE_KEY)||'', 'tech-toys-retained-data.json');}
-
-document.getElementById('loginForm').addEventListener('submit', async e=>{
-  e.preventDefault();
-  const u = document.getElementById('loginUsername').value;
-  const p = document.getElementById('loginPwd').value;
-  const user = await login(u, p);
-  if(user){
-    document.getElementById('loginErr').style.display='none';
-    showApp();
-  } else {
-    document.getElementById('loginErr').style.display='block';
-    document.getElementById('loginPwd').value='';
-  }
+let DATABASE_LOAD_ERROR=null;
+document.getElementById('loginForm').addEventListener('submit',async event=>{
+  event.preventDefault();if(AUTH_BUSY)return;AUTH_BUSY=true;
+  const button=document.getElementById('ownerSignIn');button.disabled=true;
+  try{await login(document.getElementById('loginUsername').value,document.getElementById('loginPwd').value);}
+  catch(error){loginMessage(authErrorMessage(error));}
+  finally{document.getElementById('loginPwd').value='';AUTH_BUSY=false;button.disabled=false;}
 });
-
+document.getElementById('ownerGoogle').onclick=async()=>{
+  if(!AUTH||AUTH_BUSY)return;AUTH_BUSY=true;
+  try{const provider=new firebase.auth.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await AUTH.signInWithPopup(provider);}
+  catch(error){loginMessage(authErrorMessage(error));}
+  finally{AUTH_BUSY=false;}
+};
 function showApp(){
-  if(DATABASE_LOAD_ERROR)return;
-  document.getElementById('loginWrap').style.display='none';
-  document.getElementById('app').classList.add('show');
-  // DB already loaded at page boot; refresh nav user from current session
-  const me = currentUser();
-  document.getElementById('navUser').textContent = (me && me.name) || (me && me.username) || (DB.company && (DB.company.contact_person || DB.company.name)) || 'User';
-  renderFYSelector();
-  const [view, param] = parseHash();
-  navigate(view, param);
-  initCloudSync();
+  if(!AUTH_OWNER||!CLOUD_READY||!DB)return;
+  document.getElementById('loginWrap').style.display='none';document.getElementById('app').classList.add('show');
+  renderAfterCloudLoad();
 }
-
-window.addEventListener('hashchange', ()=>{
-  if(!isLoggedIn()) return;
-  const [view, param] = parseHash();
-  if(view !== CURRENT_VIEW || (param || '') !== CURRENT_PARAMS) navigate(view, param);
+window.addEventListener('hashchange',()=>{
+  if(!isLoggedIn()||!CLOUD_READY)return;
+  const [view,param]=parseHash();if(view!==CURRENT_VIEW||(param||'')!==CURRENT_PARAMS)navigate(view,param);
 });
+initOwnerAccess();
 
-if(isLoggedIn()) showApp();
+
 </script>
 
 <script>
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-09-14-projects-portfolio-v1';
+  const BUILD_VERSION = '2026-09-14-owner-sync-v1';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
