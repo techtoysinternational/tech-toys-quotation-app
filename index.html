@@ -1397,7 +1397,7 @@ async function sendOwnerReset() {
   if(!email||!email.includes('@')){loginMessage('Enter your owner email address to request a password reset.');return;}
   AUTH_BUSY=true;
   try {
-    await AUTH.sendPasswordResetEmail(email,{url:'https://techtoysinternational.github.io/tech-toys-quotation-app/'});
+    await AUTH.sendPasswordResetEmail(email,{url:new URL('.',location.href).href});
     const message='If this account supports password sign-in, a reset email has been sent. Set the password privately from that email.';
     if(AUTH_OWNER)toast(message);else loginMessage(message);
   }catch(error){loginMessage(authErrorMessage(error));}
