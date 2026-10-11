@@ -714,17 +714,25 @@ function editPortfolioProject(id) {
 function portfolioQuotePicker(q) {
   const id=DB.portfolio.quote_links[q.id] || '';
   const project=ProjectsCore.get(DB,id);
-  return `<div class="field full"><label for="eq_portfolio">Portfolio venue / project (optional)</label><div class="ac-wrap"><input id="eq_portfolio" value="${projectEscape(project?.name||'')}" placeholder="Type any venue or project name" autocomplete="off"><input id="eq_portfolio_id" type="hidden" value="${projectEscape(project?.id||'')}"><div class="ac-list" id="portfolioAcList"></div></div><div class="field-help">Type a new name, or choose an existing Projects entry. A new name creates an editable project without marking it completed.</div></div>`;
+  const name=q.project_name || project?.name || '';
+  const linkedId=project && ProjectsCore.matches(project,name)?project.id:'';
+  return `<div class="field full"><label for="eq_portfolio">Portfolio venue / project (optional)</label><div class="ac-wrap"><input id="eq_portfolio" value="${projectEscape(name)}" placeholder="Type any venue or project name" autocomplete="off"><input id="eq_portfolio_id" type="hidden" value="${projectEscape(linkedId)}"><div class="ac-list" id="portfolioAcList"></div></div><div class="field-help">This stays matched to Project Name and the selected client. Existing projects for that client appear as suggestions.</div></div>`;
+}
+function portfolioMatchesQuoteOwner(project,clientId){
+  if(!project||!clientId)return false;
+  const owners=ProjectsCore.clients(DB,project.id);
+  return owners.length===0 || owners.some(client=>client.id===clientId);
 }
 function saveQuotePortfolioLink(q) {
   const el=document.getElementById('eq_portfolio');
   if(!el)return;
-  const typed=el.value.trim(), selected=document.getElementById('eq_portfolio_id')?.value||'';
+  const typed=(q.project_name||'').trim(), selected=document.getElementById('eq_portfolio_id')?.value||'';
+  el.value=typed;
   if(!typed){delete DB.portfolio.quote_links[q.id];return;}
   let project=selected?ProjectsCore.get(DB,selected):null;
-  if(project && !ProjectsCore.matches(project,typed))project=null;
+  if(project && (!ProjectsCore.matches(project,typed)||!portfolioMatchesQuoteOwner(project,q.client_id)))project=null;
   if(!project){
-    const matches=DB.portfolio.projects.filter(p=>!p.archived && ProjectsCore.matches(p,typed));
+    const matches=DB.portfolio.projects.filter(p=>!p.archived && ProjectsCore.matches(p,typed) && portfolioMatchesQuoteOwner(p,q.client_id));
     if(matches.length===1)project=matches[0];
   }
   if(!project){
@@ -734,16 +742,22 @@ function saveQuotePortfolioLink(q) {
   } else if(q.client_id) {
     project.client_ids=[...new Set([...(project.client_ids||[]),q.client_id])];
   }
+  if(q.client_id)DB.portfolio.work_links[ProjectsCore.workKey(q.client_id,typed)]=project.id;
   DB.portfolio.quote_links[q.id]=project.id;
   const hidden=document.getElementById('eq_portfolio_id');if(hidden)hidden.value=project.id;
   el.value=project.name;
 }
 function bindQuotePortfolioPicker(){
-  const input=document.getElementById('eq_portfolio');
+  const input=document.getElementById('eq_portfolio'),projectInput=document.getElementById('eq_project');
   if(!input)return;
   input.addEventListener('input',()=>{
+    if(projectInput)projectInput.value=input.value;
     const hidden=document.getElementById('eq_portfolio_id');if(hidden)hidden.value='';
     showQuotePortfolioChoices(input.value);
+  });
+  if(projectInput)projectInput.addEventListener('input',()=>{
+    input.value=projectInput.value;
+    const hidden=document.getElementById('eq_portfolio_id');if(hidden)hidden.value='';
   });
   input.addEventListener('focus',()=>showQuotePortfolioChoices(input.value));
   input.addEventListener('blur',()=>setTimeout(hideQuotePortfolioChoices,200));
@@ -752,8 +766,9 @@ function bindQuotePortfolioPicker(){
 function showQuotePortfolioChoices(query=''){
   const list=document.getElementById('portfolioAcList');if(!list)return;
   const text=query.trim().toLowerCase();
-  const rows=DB.portfolio.projects.filter(p=>!p.archived && (!text || [p.name,p.city||'',p.year||'',...(p.aliases||[])].join(' ').toLowerCase().includes(text))).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})).slice(0,12);
-  const createHint=text && !DB.portfolio.projects.some(p=>!p.archived&&ProjectsCore.matches(p,query))?`<div class="ac-item" style="color:var(--accent2)">Save as new project: <b>${projectEscape(query.trim())}</b><div class="ac-desc">This will remain editable in Projects and will not be marked completed.</div></div>`:'';
+  const clientId=editingQuote?.client_id||'';
+  const rows=DB.portfolio.projects.filter(p=>!p.archived && portfolioMatchesQuoteOwner(p,clientId) && (!text || [p.name,p.city||'',p.year||'',...(p.aliases||[])].join(' ').toLowerCase().includes(text))).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})).slice(0,12);
+  const createHint=text && clientId && !rows.some(p=>ProjectsCore.matches(p,query))?`<div class="ac-item" style="color:var(--accent2)">Save for this client: <b>${projectEscape(query.trim())}</b><div class="ac-desc">Project Name and Portfolio Venue will use this same name.</div></div>`:'';
   list.innerHTML=rows.map(p=>`<div class="ac-item" data-portfolio-id="${projectEscape(p.id)}"><div><span class="ac-make">${projectEscape(p.name)}</span></div><div class="ac-desc">${[p.city,p.year,p.category,p.completion].filter(Boolean).map(projectEscape).join(' · ')}</div></div>`).join('')+createHint;
   list.querySelectorAll('[data-portfolio-id]').forEach(row=>row.addEventListener('pointerdown',event=>{event.preventDefault();pickQuotePortfolio(row.dataset.portfolioId);}));
   list._sel=-1;
@@ -763,6 +778,7 @@ function hideQuotePortfolioChoices(){const list=document.getElementById('portfol
 function pickQuotePortfolio(id){
   const p=ProjectsCore.get(DB,id);if(!p)return;
   document.getElementById('eq_portfolio').value=p.name;
+  document.getElementById('eq_project').value=p.name;
   document.getElementById('eq_portfolio_id').value=p.id;
   hideQuotePortfolioChoices();
 }
@@ -2562,6 +2578,7 @@ function onClientInput(e){
       const link = document.getElementById('eq_client_link');
       if(link) link.innerHTML = 'Unlinked. Type to search or pick another client.';
       renderQuoteProjectSuggestions(null);
+      const hidden=document.getElementById('eq_portfolio_id');if(hidden)hidden.value='';
     }
   }
   if(txt.length < 1){ hideClientAC(); return; }
@@ -2647,6 +2664,7 @@ function pickClient(cid){
   const link = document.getElementById('eq_client_link');
   if(link) link.innerHTML = `Linked to <b>${escapeHTML(c.name)}</b> · ${c.gstin?'GST '+escapeHTML(c.gstin)+' · ':''}<a href="#" onclick="event.preventDefault();unlinkClient()">Unlink</a>`;
   renderQuoteProjectSuggestions(c);
+  const hidden=document.getElementById('eq_portfolio_id');if(hidden)hidden.value='';
   hideClientAC();
 }
 function unlinkClient(){
@@ -2654,6 +2672,7 @@ function unlinkClient(){
   const link = document.getElementById('eq_client_link');
   if(link) link.innerHTML = 'Unlinked. Type a name above to search or pick another client.';
   renderQuoteProjectSuggestions(null);
+  const hidden=document.getElementById('eq_portfolio_id');if(hidden)hidden.value='';
 }
 
 function renderQuoteProjectSuggestions(client){
@@ -2679,7 +2698,11 @@ function renderQuoteProjectSuggestions(client){
   box.querySelectorAll('[data-quote-project]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const input = document.getElementById('eq_project');
+      const venue = document.getElementById('eq_portfolio');
       if(input){ input.value = btn.dataset.quoteProject || ''; input.focus(); }
+      if(venue)venue.value=input?.value||'';
+      const existing=DB.portfolio.projects.find(p=>!p.archived&&portfolioMatchesQuoteOwner(p,client?.id)&&ProjectsCore.matches(p,input?.value||''));
+      const hidden=document.getElementById('eq_portfolio_id');if(hidden)hidden.value=existing?.id||'';
     });
   });
 }
@@ -5442,7 +5465,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-12-rental-tab-focus-v8';
+  const BUILD_VERSION = '2026-10-12-project-owner-match-v9';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
