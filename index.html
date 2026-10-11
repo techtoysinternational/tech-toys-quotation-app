@@ -712,20 +712,75 @@ function editPortfolioProject(id) {
   document.getElementById('ppName').focus();
 }
 function portfolioQuotePicker(q) {
-  const value=DB.portfolio.quote_links[q.id] || '';
-  return `<div class="field full"><label for="eq_portfolio">Portfolio venue (optional)</label><select id="eq_portfolio"><option value="">Match from client / project name</option>${DB.portfolio.projects.filter(p=>!p.archived || p.id===value).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${projectEscape(p.id)}" ${p.id===value?'selected':''}>${projectEscape(p.name)}</option>`).join('')}</select><div class="field-help">Links this quote to your Projects list without changing its client or work description.</div></div>`;
+  const id=DB.portfolio.quote_links[q.id] || '';
+  const project=ProjectsCore.get(DB,id);
+  return `<div class="field full"><label for="eq_portfolio">Portfolio venue / project (optional)</label><div class="ac-wrap"><input id="eq_portfolio" value="${projectEscape(project?.name||'')}" placeholder="Type any venue or project name" autocomplete="off"><input id="eq_portfolio_id" type="hidden" value="${projectEscape(project?.id||'')}"><div class="ac-list" id="portfolioAcList"></div></div><div class="field-help">Type a new name, or choose an existing Projects entry. A new name creates an editable project without marking it completed.</div></div>`;
 }
 function saveQuotePortfolioLink(q) {
   const el=document.getElementById('eq_portfolio');
   if(!el)return;
-  if(el.value && ProjectsCore.get(DB,el.value))DB.portfolio.quote_links[q.id]=el.value;
-  else delete DB.portfolio.quote_links[q.id];
+  const typed=el.value.trim(), selected=document.getElementById('eq_portfolio_id')?.value||'';
+  if(!typed){delete DB.portfolio.quote_links[q.id];return;}
+  let project=selected?ProjectsCore.get(DB,selected):null;
+  if(project && !ProjectsCore.matches(project,typed))project=null;
+  if(!project){
+    const matches=DB.portfolio.projects.filter(p=>!p.archived && ProjectsCore.matches(p,typed));
+    if(matches.length===1)project=matches[0];
+  }
+  if(!project){
+    const now=new Date().toISOString();
+    project={id:ProjectsCore.nextId(DB.portfolio),name:typed,category:'Non-F&B',type:'Unspecified',completion:'Not recorded',aliases:[],notes:'Created while saving a quotation. Completion was not inferred from quotation status.',review_note:'',origin:'Added from quotation',client_ids:q.client_id?[q.client_id]:[],created:now,updated:now};
+    DB.portfolio.projects.push(project);
+  } else if(q.client_id) {
+    project.client_ids=[...new Set([...(project.client_ids||[]),q.client_id])];
+  }
+  DB.portfolio.quote_links[q.id]=project.id;
+  const hidden=document.getElementById('eq_portfolio_id');if(hidden)hidden.value=project.id;
+  el.value=project.name;
+}
+function bindQuotePortfolioPicker(){
+  const input=document.getElementById('eq_portfolio');
+  if(!input)return;
+  input.addEventListener('input',()=>{
+    const hidden=document.getElementById('eq_portfolio_id');if(hidden)hidden.value='';
+    showQuotePortfolioChoices(input.value);
+  });
+  input.addEventListener('focus',()=>showQuotePortfolioChoices(input.value));
+  input.addEventListener('blur',()=>setTimeout(hideQuotePortfolioChoices,200));
+  input.addEventListener('keydown',onQuotePortfolioKey);
+}
+function showQuotePortfolioChoices(query=''){
+  const list=document.getElementById('portfolioAcList');if(!list)return;
+  const text=query.trim().toLowerCase();
+  const rows=DB.portfolio.projects.filter(p=>!p.archived && (!text || [p.name,p.city||'',p.year||'',...(p.aliases||[])].join(' ').toLowerCase().includes(text))).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})).slice(0,12);
+  const createHint=text && !DB.portfolio.projects.some(p=>!p.archived&&ProjectsCore.matches(p,query))?`<div class="ac-item" style="color:var(--accent2)">Save as new project: <b>${projectEscape(query.trim())}</b><div class="ac-desc">This will remain editable in Projects and will not be marked completed.</div></div>`:'';
+  list.innerHTML=rows.map(p=>`<div class="ac-item" data-portfolio-id="${projectEscape(p.id)}"><div><span class="ac-make">${projectEscape(p.name)}</span></div><div class="ac-desc">${[p.city,p.year,p.category,p.completion].filter(Boolean).map(projectEscape).join(' · ')}</div></div>`).join('')+createHint;
+  list.querySelectorAll('[data-portfolio-id]').forEach(row=>row.addEventListener('pointerdown',event=>{event.preventDefault();pickQuotePortfolio(row.dataset.portfolioId);}));
+  list._sel=-1;
+  if(rows.length||createHint)list.classList.add('show');else list.classList.remove('show');
+}
+function hideQuotePortfolioChoices(){const list=document.getElementById('portfolioAcList');if(list){list.classList.remove('show');list._sel=-1;}}
+function pickQuotePortfolio(id){
+  const p=ProjectsCore.get(DB,id);if(!p)return;
+  document.getElementById('eq_portfolio').value=p.name;
+  document.getElementById('eq_portfolio_id').value=p.id;
+  hideQuotePortfolioChoices();
+}
+function onQuotePortfolioKey(event){
+  const list=document.getElementById('portfolioAcList');if(!list||!list.classList.contains('show'))return;
+  const rows=list.querySelectorAll('[data-portfolio-id]');if(!rows.length)return;
+  if(event.key==='ArrowDown'){event.preventDefault();list._sel=(list._sel+1)%rows.length;}
+  else if(event.key==='ArrowUp'){event.preventDefault();list._sel=list._sel<=0?rows.length-1:list._sel-1;}
+  else if(event.key==='Enter'&&list._sel>=0){event.preventDefault();pickQuotePortfolio(rows[list._sel].dataset.portfolioId);return;}
+  else if(event.key==='Escape'){hideQuotePortfolioChoices();return;}else return;
+  rows.forEach((row,index)=>row.classList.toggle('sel',index===list._sel));
 }
 function newQuoteForProject(id) {
   navigate('new-quote');
   const p=ProjectsCore.get(DB,id), cs=ProjectsCore.clients(DB,id);
   if(cs.length===1)pickClient(cs[0].id);
-  document.getElementById('eq_portfolio').value=id;
+  document.getElementById('eq_portfolio').value=p.name;
+  document.getElementById('eq_portfolio_id').value=id;
   document.getElementById('eq_project').value=p.name;
 }
 function addQuotePortfolioLink(id) {
@@ -892,7 +947,8 @@ function reconcileOpenQuote(draft) {
     merged=SecureMerge.merge(SECURE_EDIT_QUOTE_BASE,draft,current);
     if(merged.conflicts.length)reason='The same quotation fields changed on another device while this form was open.';
   }
-  const picker=document.getElementById('eq_portfolio'),selected=picker?.value||null,currentLink=DB.portfolio?.quote_links?.[draft.id]||null;
+  const picker=document.getElementById('eq_portfolio'),pickerId=document.getElementById('eq_portfolio_id');
+  const typed=picker?.value?.trim()||'',selected=pickerId?.value||(typed?`new:${typed.toLowerCase().replace(/[^a-z0-9]+/g,'')}`:null),currentLink=DB.portfolio?.quote_links?.[draft.id]||null;
   if(picker&&selected!==SECURE_EDIT_LINK_BASE&&currentLink!==SECURE_EDIT_LINK_BASE&&selected!==currentLink)reason='The quotation’s portfolio link changed on another device while this form was open.';
   if(reason){
     projectStorageBackup(JSON.stringify({draft,current,base:SECURE_EDIT_QUOTE_BASE,portfolio_link:{draft:selected,current:currentLink,base:SECURE_EDIT_LINK_BASE}}),'quote-editor-review');
@@ -900,7 +956,11 @@ function reconcileOpenQuote(draft) {
     return false;
   }
   if(merged){for(const key of Object.keys(draft))delete draft[key];Object.assign(draft,merged.value);}
-  if(picker&&selected===SECURE_EDIT_LINK_BASE)picker.value=currentLink||'';
+  if(picker&&selected===SECURE_EDIT_LINK_BASE){
+    const currentProject=(DB.portfolio?.projects||[]).find(project=>project.id===currentLink);
+    picker.value=currentProject?.name||'';
+    if(pickerId)pickerId.value=currentProject?.id||'';
+  }
   return true;
 }
 
@@ -2409,9 +2469,9 @@ function renderNewQuote(id){
           <div class="field-help" id="eq_client_link">${q.client_id?`Linked to <b>${escapeHTML((DB.clients.find(c=>c.id===q.client_id)||{}).name||'')}</b> · <a href="#" onclick="event.preventDefault();unlinkClient()">Unlink</a>`:'<span style="color:var(--amber)">Not linked to a saved client.</span> Pick from suggestions or click <b>+ Add new client</b>.'}</div>
         </div>
         <div class="field"><label>Project Name <span class="muted" style="font-weight:400;text-transform:none;font-size:11px">(optional)</span></label>
-          <input id="eq_project" list="eq_proj_list" value="${escapeHTML(q.project_name||'')}" placeholder="e.g. Lobby AV setup, Banquet Hall lighting">
-          <datalist id="eq_proj_list">${q.client_id?((DB.clients.find(c=>c.id===q.client_id)||{}).projects||[]).map(p=>`<option value="${escapeHTML(p)}">`).join(''):''}</datalist>
-          <div class="field-help">What this quote is for. Leave blank for generic quotes (e.g. RENTAL).</div>
+          <input id="eq_project" value="${escapeHTML(q.project_name||'')}" placeholder="Type any project name" autocomplete="off">
+          <div class="field-help">Type a new project name, or choose an existing project below. Leave blank for generic quotes (e.g. RENTAL).</div>
+          <div id="eq_proj_suggestions"></div>
         </div>
         ${portfolioQuotePicker(q)}
         <div class="field"><label>Date</label>
@@ -2476,6 +2536,8 @@ function renderNewQuote(id){
   // initial render
   renderLineItems();
   renderTotals();
+  renderQuoteProjectSuggestions(q.client_id?(DB.clients.find(c=>c.id===q.client_id)||null):null);
+  bindQuotePortfolioPicker();
 
   // wire up client autocomplete
   const clientInp = document.getElementById('eq_client');
@@ -2497,6 +2559,7 @@ function onClientInput(e){
       delete editingQuote.client_id;
       const link = document.getElementById('eq_client_link');
       if(link) link.innerHTML = 'Unlinked. Type to search or pick another client.';
+      renderQuoteProjectSuggestions(null);
     }
   }
   if(txt.length < 1){ hideClientAC(); return; }
@@ -2581,17 +2644,42 @@ function pickClient(cid){
   document.getElementById('eq_client').value = c.name;
   const link = document.getElementById('eq_client_link');
   if(link) link.innerHTML = `Linked to <b>${escapeHTML(c.name)}</b> · ${c.gstin?'GST '+escapeHTML(c.gstin)+' · ':''}<a href="#" onclick="event.preventDefault();unlinkClient()">Unlink</a>`;
-  // populate project datalist
-  const dl = document.getElementById('eq_proj_list');
-  if(dl) dl.innerHTML = (c.projects||[]).map(p=>`<option value="${escapeHTML(p)}">`).join('');
+  renderQuoteProjectSuggestions(c);
   hideClientAC();
 }
 function unlinkClient(){
   delete editingQuote.client_id;
   const link = document.getElementById('eq_client_link');
   if(link) link.innerHTML = 'Unlinked. Type a name above to search or pick another client.';
-  const dl = document.getElementById('eq_proj_list');
-  if(dl) dl.innerHTML = '';
+  renderQuoteProjectSuggestions(null);
+}
+
+function renderQuoteProjectSuggestions(client){
+  const box = document.getElementById('eq_proj_suggestions');
+  if(!box) return;
+  const projects = client && Array.isArray(client.projects)
+    ? [...new Set(client.projects.map(p=>String(p||'').trim()).filter(Boolean))]
+    : [];
+  if(!client){
+    box.innerHTML = '<div class="field-help" style="margin-top:8px">Choose a saved client to see its existing projects. You can still type a new project name.</div>';
+    return;
+  }
+  if(!projects.length){
+    box.innerHTML = '<div class="field-help" style="margin-top:8px">This client has no saved projects yet. The name you type will become its first project when the quotation is saved.</div>';
+    return;
+  }
+  box.innerHTML = `
+    <div class="field-help" style="margin-top:8px">Existing projects for this client (optional)</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+      ${projects.map(p=>`<button type="button" class="btn btn-sm" data-quote-project="${escapeHTML(p)}">${escapeHTML(p)}</button>`).join('')}
+    </div>
+    <div class="field-help" style="margin-top:6px">You can ignore these and type a different name to add another project.</div>`;
+  box.querySelectorAll('[data-quote-project]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const input = document.getElementById('eq_project');
+      if(input){ input.value = btn.dataset.quoteProject || ''; input.focus(); }
+    });
+  });
 }
 
 function addLineItem(){
@@ -3191,13 +3279,12 @@ function saveClient(id){
       if(newClient){
         editingQuote.client = newClient.name;
         editingQuote.client_id = newClient.id;
-        // Reflect in the form: input value, link line, and project datalist
+        // Reflect in the form: input value, link line, and optional project suggestions
         const inp = document.getElementById('eq_client');
         if(inp) inp.value = newClient.name;
         const link = document.getElementById('eq_client_link');
         if(link) link.innerHTML = `Linked to <b>${escapeHTML(newClient.name)}</b>${newClient.gstin?` · GSTIN ${escapeHTML(newClient.gstin)}`:''} · <a href="#" onclick="event.preventDefault();unlinkClient()">Unlink</a>`;
-        const dl = document.getElementById('eq_proj_list');
-        if(dl) dl.innerHTML = (newClient.projects||[]).map(p=>`<option value="${escapeHTML(p)}">`).join('');
+        renderQuoteProjectSuggestions(newClient);
         hideClientAC();
         toast('New client linked to this quote');
       }
@@ -5346,7 +5433,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-09-15-owner-sync-email-project-fields-rentals-clean-v6';
+  const BUILD_VERSION = '2026-10-12-free-project-names-v7';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
