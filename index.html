@@ -1028,7 +1028,9 @@ function applySyncedDB(value,render=true) {
   ProjectsCore.ensure(next,PORTFOLIO_SOURCE);
   localStorage.setItem(STORAGE_KEY,JSON.stringify(next));DB=next;
   if(render&&isLoggedIn()) {
-    if(CURRENT_VIEW==='new-quote'||CURRENT_VIEW==='edit-quote')return;
+    // Keep active editors mounted. Rebuilding the rental form after each
+    // cloud-confirmed blur steals focus and breaks normal Tab navigation.
+    if(CURRENT_VIEW==='new-quote'||CURRENT_VIEW==='edit-quote'||CURRENT_VIEW==='rental')return;
     renderAfterCloudLoad();
   }
 }
@@ -5160,18 +5162,25 @@ function renderRentalDetail(id){
       const field = e.target.dataset.field;
       let val = e.target.value;
       if(field==='qty' || field==='rate') val = +val || 0;
-      r.items[idx][field] = val;
+      // Cloud confirmation can replace DB with a merged copy while this form
+      // remains open. Resolve the current rental instead of writing through
+      // the stale object captured when the form was rendered.
+      const currentRental = DB.rentals.find(x=>x.id===id);
+      if(!currentRental?.items?.[idx]) return;
+      currentRental.items[idx][field] = val;
       // Update the row's amount cell so the user sees the change live
       const row = e.target.closest('tr');
       if(row){
         const amtCell = row.querySelector('.li-amt');
-        if(amtCell) amtCell.textContent = fmtINR((r.items[idx].qty||0)*(r.items[idx].rate||0));
+        if(amtCell) amtCell.textContent = fmtINR((currentRental.items[idx].qty||0)*(currentRental.items[idx].rate||0));
       }
     });
     // Save silently on blur (no re-render — preserves focus so the user
     // can tab between line item cells without the DOM rebuilding).
     inp.addEventListener('blur', ()=>{
-      r.updated = new Date().toISOString();
+      const currentRental = DB.rentals.find(x=>x.id===id);
+      if(!currentRental) return;
+      currentRental.updated = new Date().toISOString();
       saveDB();
     });
   });
@@ -5433,7 +5442,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-12-free-project-names-v7';
+  const BUILD_VERSION = '2026-10-12-rental-tab-focus-v8';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
