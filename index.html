@@ -164,13 +164,47 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .tag{display:inline-block;padding:2px 7px;background:var(--panel2);border-radius:4px;font-size:11px;color:var(--muted);font-weight:500}
 
 /* Print / PDF export */
+@page { size:A4 portrait; margin:0; }
 @media print {
-  body { background:#fff !important; color:#000 !important; }
+  html,body { width:210mm; height:auto; background:#fff !important; color:#000 !important; }
   .app, .sidebar, .modal-wrap, .login-wrap, .toast, #print-only { display:none !important; }
   #print-area { display:block !important; }
+  .print-page { break-after:page; page-break-after:always; }
+  .print-page:last-child { break-after:auto; page-break-after:auto; }
+  .print-tbl thead { display:table-header-group; }
+  .print-tbl tr,.print-totals,.print-foot,.print-sign,.print-thanks { break-inside:avoid; page-break-inside:avoid; }
 }
 #print-area{display:none}
 .print-page{width:210mm;min-height:297mm;padding:18mm 16mm;margin:0 auto;background:#fff;color:#222;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11pt;line-height:1.45;display:flex;flex-direction:column}
+.print-page.quote-one-page{height:297mm;min-height:297mm;padding:0;overflow:hidden;display:block}
+.quote-one-page .quote-print-content{width:100%;height:297mm;min-height:297mm;padding:10mm 12mm;display:flex;flex-direction:column;transform-origin:top left}
+.quote-one-page .print-header{padding-bottom:8px;margin-bottom:10px}
+.quote-one-page .print-brand{font-size:24pt}
+.quote-one-page .print-cust{margin-bottom:10px}
+.quote-one-page .print-cust .name{font-size:11pt}
+.quote-one-page .print-cust .addr{font-size:8.5pt}
+.quote-one-page .print-tbl{margin-bottom:8px;font-size:8.5pt}
+.quote-one-page .print-tbl thead th{padding:5px 7px;font-size:8pt}
+.quote-one-page .print-tbl tbody td{padding:5px 7px}
+.quote-one-page .print-tbl .item-desc{font-size:8pt}
+.quote-one-page .print-totals{margin-bottom:8px}
+.quote-one-page .print-totals tr td{padding:3px 0;font-size:9pt}
+.quote-one-page .print-totals tr.grand td{font-size:11pt;padding-top:5px}
+.quote-one-page .print-foot{gap:14px;margin-top:8px;padding-top:8px;font-size:8pt}
+.quote-one-page .print-foot .lbl{font-size:8.5pt}
+.quote-one-page .print-sign{padding-top:24px}
+.quote-one-page .print-thanks{font-size:9pt;margin-top:10px;padding-top:8px}
+.quote-multi-page{padding:12mm 14mm;font-size:10pt;line-height:1.35}
+.quote-multi-page .print-header{padding-bottom:10px;margin-bottom:12px}
+.quote-multi-page .print-cust{margin-bottom:12px}
+.quote-multi-page .print-tbl{margin-bottom:10px;font-size:9pt}
+.quote-multi-page .print-tbl thead th{padding:6px 8px;font-size:8.5pt}
+.quote-multi-page .print-tbl tbody td{padding:6px 8px}
+.quote-multi-page .print-tbl .item-desc{font-size:8pt;line-height:1.3}
+.quote-multi-page .print-totals{margin-bottom:10px}
+.quote-multi-page .print-foot{gap:16px;margin-top:12px;padding-top:10px;font-size:8.5pt}
+.quote-multi-page .print-sign{padding-top:30px}
+.quote-multi-page .print-thanks{font-size:9pt;margin-top:12px;padding-top:9px}
 .print-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #ff7a2f;padding-bottom:14px;margin-bottom:18px}
 .print-brand{font-size:30pt;font-weight:800;letter-spacing:-1px;color:#1a1a1a;line-height:1}
 .print-tag{font-size:9pt;color:#666;margin-top:3px;letter-spacing:.5px}
@@ -3528,6 +3562,7 @@ async function printQuote(id){
   const afterDisc = quoteAfterDiscount(q);
   const tax = quoteTax(q);
   const total = quoteTotal(q);
+  const onePage = q.items.length <= 10;
 
   const taxRows = q.tax_type==='SGST_CGST'
     ? `<tr><td>SGST @ 9%</td><td>${fmtINR2(afterDisc*0.09)}</td></tr><tr><td>CGST @ 9%</td><td>${fmtINR2(afterDisc*0.09)}</td></tr>`
@@ -3536,7 +3571,8 @@ async function printQuote(id){
     : '';
 
   const html = `
-    <div class="print-page">
+    <div class="print-page${onePage?' quote-one-page':' quote-multi-page'}">
+      ${onePage?'<div class="quote-print-content">':''}
       <div class="print-header">
         <div>
           <div class="print-brand">${escapeHTML(c.name)}</div>
@@ -3636,6 +3672,7 @@ async function printQuote(id){
         <div class="print-sign-line">For ${escapeHTML(c.name)}<br><b>${escapeHTML(c.contact_person||'')}</b></div>
       </div>
       <div class="print-thanks">Thank you for your business.</div>
+      ${onePage?'</div>':''}
     </div>
   `;
 
@@ -3643,9 +3680,23 @@ async function printQuote(id){
   const prepared=performance.now();
   if(document.fonts)await document.fonts.ready;
   await new Promise(resolve=>requestAnimationFrame(resolve));
-  window.__techToysPrintTiming={items:q.items.length,generationMs:prepared-printStarted,readyMs:performance.now()-printStarted};
+  const printScale=fitSinglePageQuote();
+  window.__techToysPrintTiming={items:q.items.length,generationMs:prepared-printStarted,readyMs:performance.now()-printStarted,scale:printScale};
   window.print();
   } finally {QUOTE_PRINT_BUSY=false;setPrintBusy(false);}
+}
+
+function fitSinglePageQuote(){
+  const page=document.querySelector('#print-area .quote-one-page');
+  const content=page?.querySelector('.quote-print-content');
+  if(!page||!content)return 1;
+  content.style.transform='';content.style.width='100%';
+  const available=page.clientHeight;
+  const required=content.scrollHeight;
+  const scale=required>available?Math.min(1,(available-2)/required):1;
+  if(scale<1){content.style.width=`${100/scale}%`;content.style.transform=`scale(${scale})`;}
+  page.dataset.printScale=scale.toFixed(3);
+  return scale;
 }
 
 /* -------- Merge multiple quotations into one combined PDF -------- */
@@ -5468,7 +5519,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-13-new-quote-link-fix-v10';
+  const BUILD_VERSION = '2026-10-13-one-page-quotes-v11';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
