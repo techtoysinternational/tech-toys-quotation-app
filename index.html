@@ -171,13 +171,17 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
   #print-area { display:block !important; }
   .print-page { break-after:page; page-break-after:always; }
   .print-page:last-child { break-after:auto; page-break-after:auto; }
+  /* Keep a small physical-page safety margin. Some browser/printer combinations
+     round an exact 297mm element upward and create a second, empty sheet. */
+  .print-page.quote-one-page { width:209mm; height:296mm; min-height:0; margin:0; }
+  .quote-one-page .quote-print-content { height:296mm; min-height:296mm; }
   .print-tbl thead { display:table-header-group; }
   .print-tbl tr,.print-totals,.print-foot,.print-sign,.print-thanks { break-inside:avoid; page-break-inside:avoid; }
 }
 #print-area{display:none}
 .print-page{width:210mm;min-height:297mm;padding:18mm 16mm;margin:0 auto;background:#fff;color:#222;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11pt;line-height:1.45;display:flex;flex-direction:column}
-.print-page.quote-one-page{height:297mm;min-height:297mm;padding:0;overflow:hidden;display:block}
-.quote-one-page .quote-print-content{width:100%;height:297mm;min-height:297mm;padding:10mm 12mm;display:flex;flex-direction:column;transform-origin:top left}
+.print-page.quote-one-page{height:296mm;min-height:296mm;padding:0;overflow:hidden;display:block}
+.quote-one-page .quote-print-content{width:100%;height:296mm;min-height:296mm;padding:10mm 12mm;display:flex;flex-direction:column;transform-origin:top left}
 .quote-one-page .print-header{padding-bottom:8px;margin-bottom:10px}
 .quote-one-page .print-brand{font-size:24pt}
 .quote-one-page .print-cust{margin-bottom:10px}
@@ -5519,7 +5523,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-13-one-page-quotes-v11';
+  const BUILD_VERSION = '2026-10-13-no-blank-print-page-v12';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
