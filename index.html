@@ -965,7 +965,10 @@ function reconcileOpenQuote(draft) {
   }
   const picker=document.getElementById('eq_portfolio'),pickerId=document.getElementById('eq_portfolio_id');
   const typed=picker?.value?.trim()||'',selected=pickerId?.value||(typed?`new:${typed.toLowerCase().replace(/[^a-z0-9]+/g,'')}`:null),currentLink=DB.portfolio?.quote_links?.[draft.id]||null;
-  if(picker&&selected!==SECURE_EDIT_LINK_BASE&&currentLink!==SECURE_EDIT_LINK_BASE&&selected!==currentLink)reason='The quotation’s portfolio link changed on another device while this form was open.';
+  // Link conflicts apply only while editing an existing quotation. A new
+  // quotation may reuse a sequence number that still has a dangling legacy
+  // link; saveQuotePortfolioLink will safely replace that orphaned reference.
+  if(SECURE_EDIT_QUOTE_BASE&&picker&&selected!==SECURE_EDIT_LINK_BASE&&currentLink!==SECURE_EDIT_LINK_BASE&&selected!==currentLink)reason='The quotation’s portfolio link changed on another device while this form was open.';
   if(reason){
     projectStorageBackup(JSON.stringify({draft,current,base:SECURE_EDIT_QUOTE_BASE,portfolio_link:{draft:selected,current:currentLink,base:SECURE_EDIT_LINK_BASE}}),'quote-editor-review');
     alert(reason+' Your draft and the current record have been retained for review. Close and reopen the quotation before saving again.');
@@ -5465,7 +5468,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-12-project-owner-match-v9';
+  const BUILD_VERSION = '2026-10-13-new-quote-link-fix-v10';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
