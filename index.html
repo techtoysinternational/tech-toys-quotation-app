@@ -1455,6 +1455,16 @@ function authErrorMessage(error) {
   if(code.includes('operation-not-allowed')||code.includes('unauthorized-domain'))return 'Owner sign-in setup is not complete. No business data has been changed.';
   return 'Sign-in was not completed. Check your owner account and try again.';
 }
+function ownerAccessRetryable(error){
+  const code=String(error?.code||'');
+  return ['network','unavailable','deadline-exceeded','internal','unknown'].some(part=>code.includes(part));
+}
+function ownerAccessMessage(error){
+  const code=String(error?.code||'');
+  if(ownerAccessRetryable(error))return 'The owner check could not reach the server. Check the connection and reload; saved data has not been replaced.';
+  if(code.includes('permission-denied')||code.includes('unauthenticated'))return 'This signed-in account is not approved for the private workspace. Choose the approved owner account.';
+  return 'Owner access could not be confirmed. Reload and try the approved owner account. Saved data has not been replaced.';
+}
 function isLoggedIn(){return !!AUTH_OWNER;}
 function currentUser(){return AUTH_OWNER?{id:AUTH_OWNER.uid,username:AUTH_OWNER.username,name:AUTH_OWNER.username,role:'Admin'}:null;}
 function isAdmin(){return !!AUTH_OWNER;}
@@ -1532,6 +1542,29 @@ async function logout() {
   sessionStorage.removeItem(SESSION_KEY);sessionStorage.removeItem(USER_KEY);
   loginMessage('Signed out. Your saved device copy is retained.');
 }
+async function establishOwnerAccess(user,epoch,attempt=0){
+  try {
+    const membership=await CLOUD_DB.collection('appAccess').doc(user.uid).get({source:'server'});
+    if(epoch!==AUTH_EPOCH)return;
+    const access=membership.exists&&membership.data();
+    if(!access||access.role!=='owner'||access.active!==true||typeof access.username!=='string'){
+      const error=new Error('Owner approval missing');error.code='permission-denied';throw error;
+    }
+    AUTH_OWNER={uid:user.uid,username:access.username};
+    loadDB();
+    await initCloudSync();
+  }catch(error){
+    if(epoch!==AUTH_EPOCH)return;
+    stopCloudSync();AUTH_OWNER=null;
+    if(ownerAccessRetryable(error)&&attempt<2){
+      loginMessage(`Connection interrupted while checking owner access. Retrying… (${attempt+2}/3)`);
+      await new Promise(resolve=>setTimeout(resolve,700*(attempt+1)));
+      if(epoch!==AUTH_EPOCH||AUTH?.currentUser?.uid!==user.uid)return;
+      return establishOwnerAccess(user,epoch,attempt+1);
+    }
+    loginMessage(ownerAccessMessage(error));
+  }
+}
 async function initOwnerAccess() {
   try {
     if(!await loadCloudSdkForHostedApp()) {loginMessage('Open the published HTTPS app to sign in. This private test build does not connect from a local file.');return;}
@@ -1544,19 +1577,7 @@ async function initOwnerAccess() {
       hidePrivateViews();
       if(!user){loginMessage('Sign in with your approved owner account.');return;}
       if(!user.emailVerified){loginMessage('Verify your email using Firebase’s verification email, then sign in again.');return;}
-      try {
-        const membership=await CLOUD_DB.collection('appAccess').doc(user.uid).get({source:'server'});
-        if(epoch!==AUTH_EPOCH)return;
-        const access=membership.exists&&membership.data();
-        if(!access||access.role!=='owner'||access.active!==true||typeof access.username!=='string')throw new Error('Owner approval missing');
-        AUTH_OWNER={uid:user.uid,username:access.username};
-        loadDB();
-        await initCloudSync();
-      }catch(error){
-        if(epoch!==AUTH_EPOCH)return;
-        AUTH_OWNER=null;
-        loginMessage('Owner access could not be confirmed. Check account setup and connection. Saved data has not been replaced.');
-      }
+      await establishOwnerAccess(user,epoch);
     });
   }catch(error){loginMessage(authErrorMessage(error));}
 }
@@ -5535,7 +5556,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-16-auto-create-quote-client-v13';
+  const BUILD_VERSION = '2026-10-16-owner-access-retry-v14';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
