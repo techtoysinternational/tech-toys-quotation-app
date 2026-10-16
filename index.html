@@ -173,15 +173,15 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
   .print-page:last-child { break-after:auto; page-break-after:auto; }
   /* Keep a small physical-page safety margin. Some browser/printer combinations
      round an exact 297mm element upward and create a second, empty sheet. */
-  .print-page.quote-one-page { width:209mm; height:296mm; min-height:0; margin:0; }
-  .quote-one-page .quote-print-content { height:296mm; min-height:296mm; }
+  .print-page.quote-one-page { width:209mm; height:270mm; min-height:0; margin:0; }
+  .quote-one-page .quote-print-content { height:270mm; min-height:270mm; }
   .print-tbl thead { display:table-header-group; }
   .print-tbl tr,.print-totals,.print-foot,.print-sign,.print-thanks { break-inside:avoid; page-break-inside:avoid; }
 }
 #print-area{display:none}
 .print-page{width:210mm;min-height:297mm;padding:18mm 16mm;margin:0 auto;background:#fff;color:#222;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11pt;line-height:1.45;display:flex;flex-direction:column}
-.print-page.quote-one-page{height:296mm;min-height:296mm;padding:0;overflow:hidden;display:block}
-.quote-one-page .quote-print-content{width:100%;height:296mm;min-height:296mm;padding:10mm 12mm;display:flex;flex-direction:column;transform-origin:top left}
+.print-page.quote-one-page{height:270mm;min-height:270mm;padding:0;overflow:hidden;display:block}
+.quote-one-page .quote-print-content{width:100%;height:270mm;min-height:270mm;padding:10mm 12mm;display:flex;flex-direction:column;transform-origin:top left}
 .quote-one-page .print-header{padding-bottom:8px;margin-bottom:10px}
 .quote-one-page .print-brand{font-size:24pt}
 .quote-one-page .print-cust{margin-bottom:10px}
@@ -3759,6 +3759,13 @@ function fitSinglePageQuote(){
   page.dataset.printScale=scale.toFixed(3);
   return scale;
 }
+// Print media can change table measurements after the native dialog starts,
+// especially in iPad Safari. Refit once the browser has applied print CSS.
+window.addEventListener('beforeprint',fitSinglePageQuote);
+const quotePrintMedia=window.matchMedia?.('print');
+const refitQuoteForPrint=event=>{if(event.matches)fitSinglePageQuote();};
+if(quotePrintMedia?.addEventListener)quotePrintMedia.addEventListener('change',refitQuoteForPrint);
+else quotePrintMedia?.addListener?.(refitQuoteForPrint);
 
 /* -------- Merge multiple quotations into one combined PDF -------- */
 function mergeSelectedQuotes(){
@@ -5580,7 +5587,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-16-mobile-cache-recovery-v15';
+  const BUILD_VERSION = '2026-10-16-ipad-one-page-print-v16';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
