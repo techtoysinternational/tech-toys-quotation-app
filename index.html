@@ -586,8 +586,20 @@ const PROJECTS_BACKUP_PREFIX = 'techToys_beforeProjects_';
 let projectsFilter = {search:'',category:'',type:'',completion:'',city:'',year:'',review:false,archived:false};
 function projectStorageBackup(raw, reason = 'migration') {
   if (!raw) return;
+  const keys=Object.keys(localStorage).filter(k=>k.startsWith(PROJECTS_BACKUP_PREFIX)).sort().reverse();
+  // Do not store the same full database again on every sign-in.
+  if(keys.length&&localStorage.getItem(keys[0])===raw)return keys[0];
   const key = PROJECTS_BACKUP_PREFIX + new Date().toISOString() + '_' + reason;
-  localStorage.setItem(key,raw);
+  // Keep recent automatic safety copies without allowing them to fill mobile
+  // browser storage. Only this app's generated backup keys are pruned.
+  while(Object.keys(localStorage).filter(k=>k.startsWith(PROJECTS_BACKUP_PREFIX)).length>=5){
+    const oldest=Object.keys(localStorage).filter(k=>k.startsWith(PROJECTS_BACKUP_PREFIX)).sort()[0];
+    if(!oldest)break;localStorage.removeItem(oldest);
+  }
+  try{localStorage.setItem(key,raw);}catch(error){
+    const old=Object.keys(localStorage).filter(k=>k.startsWith(PROJECTS_BACKUP_PREFIX)).sort();
+    while(old.length){localStorage.removeItem(old.shift());try{localStorage.setItem(key,raw);break;}catch{} }
+  }
   if (localStorage.getItem(key) !== raw) throw new Error('The safety backup could not be saved. Free browser storage or export your current data before continuing.');
   return key;
 }
@@ -1067,8 +1079,16 @@ function loadDB() {
   // Hosted startup never creates users, runs historical record patches, or
   // initializes a missing database. Keep the original cache intact until read.
   const raw=localStorage.getItem(STORAGE_KEY);
-  DB=raw?JSON.parse(raw):null;
-  if(DB)ProjectsCore.validate(DB);
+  if(!raw){DB=null;return;}
+  try{
+    DB=JSON.parse(raw);ProjectsCore.validate(DB);
+  }catch(error){
+    // Preserve the stale/invalid device copy under the app's bounded safety
+    // backups, then let the mandatory server read restore the current cloud DB.
+    projectStorageBackup(raw,'invalid-device-cache');
+    localStorage.removeItem(STORAGE_KEY);DB=null;
+    DATABASE_LOAD_ERROR=error;
+  }
 }
 function saveDB() {
   if(!AUTH_OWNER||!CLOUD_READY||!DB)throw new Error('Sign in and load the existing database before saving.');
@@ -1553,6 +1573,10 @@ async function establishOwnerAccess(user,epoch,attempt=0){
     AUTH_OWNER={uid:user.uid,username:access.username};
     loadDB();
     await initCloudSync();
+    if(DATABASE_LOAD_ERROR){
+      DATABASE_LOAD_ERROR=null;
+      toast('This device’s older cache was backed up and refreshed from the secure cloud.');
+    }
   }catch(error){
     if(epoch!==AUTH_EPOCH)return;
     stopCloudSync();AUTH_OWNER=null;
@@ -5556,7 +5580,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-16-owner-access-retry-v14';
+  const BUILD_VERSION = '2026-10-16-mobile-cache-recovery-v15';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
