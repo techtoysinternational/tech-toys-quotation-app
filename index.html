@@ -2952,10 +2952,22 @@ function saveQuote(forPrint=false){
   q.notes = document.getElementById('eq_notes').value;
   q.updated = new Date().toISOString();
 
-  // Client must be linked to a saved client record
+  // A typed client name is enough. Reuse an exact existing name when possible;
+  // otherwise create the minimal client record needed to keep quotes and
+  // projects linked across devices. Contact and tax details remain editable.
   if(!q.client_id){
-    alert('Please pick a client from the suggestions, or click "+ Add new client" to create one. The Client field cannot be free text.');
-    return;
+    if(!typedClient){ alert('Client name is required.'); return; }
+    ensureClients();
+    const existing=DB.clients.find(c=>String(c.name||'').trim().toLowerCase()===typedClient.toLowerCase());
+    if(existing){
+      q.client_id=existing.id;
+    } else {
+      let n=1;while(DB.clients.find(c=>c.id===`C${String(n).padStart(4,'0')}`))n++;
+      const now=new Date().toISOString();
+      const created={id:`C${String(n).padStart(4,'0')}`,name:typedClient,contact_person:'',phone:'',email:'',address_l1:'',address_l2:'',city:'',state:'',pincode:'',gstin:'',pan:'',projects:[],notes:'',created:now,updated:now};
+      DB.clients.push(created);
+      q.client_id=created.id;
+    }
   }
   const linked = DB.clients.find(c=>c.id===q.client_id);
   if(!linked){
@@ -5523,7 +5535,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-13-no-blank-print-page-v12';
+  const BUILD_VERSION = '2026-10-16-auto-create-quote-client-v13';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
