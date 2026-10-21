@@ -244,12 +244,13 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .print-totals tr td:first-child{color:#666}
 .print-totals tr td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
 .print-totals tr.grand td{font-size:13pt;font-weight:700;color:#ff7a2f;border-top:2px solid #1a1a1a;padding-top:8px}
-.print-foot{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-top:22px;padding-top:14px;border-top:1px solid #ddd;font-size:9pt;color:#444}
+.print-foot{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.35fr);gap:24px;margin-top:22px;padding-top:14px;border-top:1px solid #ddd;font-size:9pt;color:#444;align-items:start}
+.print-foot>div{min-width:0;text-align:left}
 .print-foot .lbl{font-weight:700;color:#1a1a1a;margin-bottom:3px;font-size:9.5pt}
 .print-sign{margin-top:auto;display:flex;justify-content:flex-end;align-items:flex-end;padding-top:60px}
 .print-sign-line{border-top:1px solid #999;width:200px;text-align:center;padding-top:5px;font-size:9pt;color:#666}
 .print-thanks{font-size:10pt;color:#888;font-style:italic;text-align:center;margin-top:30px;padding-top:14px;border-top:1px solid #eee}
-.print-foot .terms-line{padding-left:14px;text-indent:-14px;line-height:1.45}
+.print-foot .terms-line{padding:0;text-indent:0;line-height:1.4;margin:0 0 2px;white-space:normal;overflow-wrap:anywhere}
 .print-foot .bank-line{line-height:1.35;margin:0}
 .merged-section{margin-bottom:14px;padding-bottom:10px;border-bottom:1px dashed #ccc}
 .merged-section:last-of-type{border-bottom:none}
@@ -5673,7 +5674,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-21-quotation-sections-v17';
+  const BUILD_VERSION = '2026-10-21-print-terms-layout-v18';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
