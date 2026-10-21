@@ -1,5 +1,5 @@
 // Scoped cache for this version; no business data or localStorage is reset.
-const CACHE = 'techtoys-quotation-sections-2026-10-21-v17';
+const CACHE = 'techtoys-print-terms-layout-2026-10-21-v18';
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['./','./index.html','./manifest.webmanifest','./assets/icon-192.png','./assets/icon-512.png']))); self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('message', event => { if(event.data?.type==='SKIP_WAITING')self.skipWaiting(); });
