@@ -125,6 +125,14 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .li-tbl input{padding:7px 10px;font-size:13px}
 .li-tbl .num input{text-align:right}
 .li-row .li-amt{padding:10px 8px;text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+.li-section-select{margin-top:5px;padding:5px 8px;font-size:11px;color:var(--muted);background:var(--panel2)}
+.quote-section-head td{padding-top:14px;padding-bottom:6px;border-top:1px solid var(--border)}
+.quote-section-head:first-child td{border-top:none}
+.quote-section-letter{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#111;font-weight:800}
+.quote-section-name{font-weight:700;border-color:var(--accent)!important}
+.quote-section-actions{text-align:right;white-space:nowrap}
+.quote-section-subtotal td{padding:7px 4px 13px;border-bottom:1px solid var(--border);color:var(--muted);font-weight:600;text-align:right}
+.quote-view-section td{background:var(--panel2)!important;color:var(--accent2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 
 /* Autocomplete */
 .ac-wrap{position:relative}
@@ -228,6 +236,9 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .print-tbl .item-make{font-weight:600;color:#1a1a1a}
 .print-tbl .item-desc{font-size:9pt;color:#666;margin-top:1px}
 .print-tbl .item-code{font-size:8pt;color:#888;margin-top:1px}
+.print-tbl .print-section-row td{background:#eceff3!important;color:#1a1a1a;font-weight:800;border-top:1.5px solid #1a1a1a;border-bottom:1px solid #bbb}
+.print-tbl .print-section-subtotal td{background:#fff!important;color:#444;font-weight:600;border-bottom:1.5px solid #888;padding-top:5px;padding-bottom:6px}
+.print-section-row,.print-section-subtotal{break-inside:avoid;page-break-inside:avoid}
 .print-totals{margin-left:auto;width:280px;margin-bottom:18px}
 .print-totals tr td{padding:5px 0;font-size:10pt}
 .print-totals tr td:first-child{color:#666}
@@ -1623,7 +1634,44 @@ const fmtDate = d => {
 const today = () => new Date().toISOString().slice(0,10);
 const escapeHTML = s => String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-function quoteSubtotal(q){ return q.items.reduce((s,it)=>s + (it.qty||0)*(it.price||0), 0); }
+function quoteSectionLetter(index){
+  let n=index+1,label='';
+  while(n>0){n--;label=String.fromCharCode(65+(n%26))+label;n=Math.floor(n/26);}
+  return label;
+}
+function quoteSections(q){
+  const seen=new Set();
+  return (Array.isArray(q?.sections)?q.sections:[]).filter(section=>{
+    const id=String(section?.id||'').trim();
+    if(!id||seen.has(id))return false;
+    seen.add(id);return true;
+  }).map(section=>({id:String(section.id),name:String(section.name||'').trim()}));
+}
+function quoteSectionTitle(section,index){
+  const letter=quoteSectionLetter(index);
+  return `${letter}. ${section.name||`Section ${letter}`}`;
+}
+function quoteGroupedItems(q,includeEmpty=false){
+  const sections=quoteSections(q),ids=new Set(sections.map(section=>section.id));
+  if(!sections.length)return [{id:'',name:'',letter:'',title:'',items:(q.items||[]).map((item,index)=>({item,index})),subtotal:quoteSubtotal(q)}];
+  const groups=[];
+  const loose=(q.items||[]).map((item,index)=>({item,index})).filter(row=>!ids.has(String(row.item.section_id||'')));
+  if(loose.length)groups.push({id:'',name:'Other items',letter:'',title:'Other items',items:loose,subtotal:loose.reduce((sum,row)=>sum+(row.item.qty||0)*(row.item.price||0),0)});
+  sections.forEach((section,index)=>{
+    const items=(q.items||[]).map((item,itemIndex)=>({item,index:itemIndex})).filter(row=>String(row.item.section_id||'')===section.id);
+    if(includeEmpty||items.length)groups.push({...section,letter:quoteSectionLetter(index),title:quoteSectionTitle(section,index),items,subtotal:items.reduce((sum,row)=>sum+(row.item.qty||0)*(row.item.price||0),0)});
+  });
+  return groups;
+}
+function quoteHasSections(q){return quoteSections(q).length>0;}
+function quoteSectionTotalsMarkup(q,formatter=fmtINR){
+  if(!quoteHasSections(q))return '';
+  const groups=quoteGroupedItems(q).filter(group=>group.items.length);
+  return groups.map(group=>`<div class="lbl">${escapeHTML(group.title)} subtotal</div><div class="val">${formatter(group.subtotal)}</div>`).join('')+
+    `<div class="lbl"><b>Subtotal (all sections)</b></div><div class="val"><b>${formatter(quoteSubtotal(q))}</b></div>`;
+}
+
+function quoteSubtotal(q){ return (q.items||[]).reduce((s,it)=>s + (it.qty||0)*(it.price||0), 0); }
 function quoteAfterDiscount(q){ return Math.max(0, quoteSubtotal(q) - (q.discount||0)); }
 function quoteTax(q){ return quoteAfterDiscount(q) * (q.tax_pct||0)/100; }
 function quoteTotal(q){ return quoteAfterDiscount(q) + quoteTax(q); }
@@ -2170,7 +2218,7 @@ function renderQuoteDetailBase(id){
         <thead><tr><th style="width:30px">#</th><th>Make</th><th>Description</th><th>Code</th><th class="num">Qty</th><th class="num">Unit Price</th><th class="num">Amount</th></tr></thead>
         <tbody>
           ${q.items.length === 0 ? '<tr><td colspan="7" class="empty">No line items.</td></tr>' :
-            q.items.map((it,i)=>`
+            quoteGroupedItems(q).map(group=>`${group.title?`<tr class="quote-view-section"><td colspan="6"><b>${escapeHTML(group.title)}</b></td><td class="num"><b>${fmtINR(group.subtotal)}</b></td></tr>`:''}${group.items.map(({item:it,index:i})=>`
               <tr>
                 <td class="muted">${i+1}</td>
                 <td><b>${escapeHTML(it.make||'')}</b></td>
@@ -2179,12 +2227,12 @@ function renderQuoteDetailBase(id){
                 <td class="num">${fmtNum(it.qty)} ${escapeHTML(it.uom||'')}</td>
                 <td class="num">${fmtINR(it.price)}</td>
                 <td class="num"><b>${fmtINR((it.qty||0)*(it.price||0))}</b></td>
-              </tr>
-            `).join('')}
+              </tr>`).join('')}`).join('')}
         </tbody>
       </table>
 
       <div class="totals">
+        ${quoteSectionTotalsMarkup(q)}
         ${q.discount ? `<div class="lbl">Discount</div><div class="val">- ${fmtINR(q.discount)}</div>`:''}
         <div class="lbl">Tax (${q.tax_type} ${q.tax_pct}%)</div><div class="val">${fmtINR(quoteTax(q))}</div>
         <div class="lbl grand">Grand Total</div><div class="val grand">${fmtINR(quoteTotal(q))}</div>
@@ -2593,7 +2641,7 @@ function renderNewQuote(id){
     <div class="card">
       <div class="card-head">
         <div class="card-title">Line items</div>
-        <button class="btn btn-sm btn-primary" onclick="addLineItem()">+ Add row</button>
+        <div class="row" style="gap:6px"><button class="btn btn-sm" onclick="addQuoteSection()">+ Add section</button><button class="btn btn-sm btn-primary" onclick="addLineItem()">+ Add row</button></div>
       </div>
       <table class="li-tbl">
         <thead>
@@ -2793,49 +2841,82 @@ function renderQuoteProjectSuggestions(client){
   });
 }
 
-function addLineItem(){
-  editingQuote.items.push({desc:'', make:'', code:'', qty:1, price:0, uom:'Nos.', country:''});
+function addLineItem(sectionId=''){
+  const sections=quoteSections(editingQuote);
+  const valid=sections.some(section=>section.id===sectionId);
+  editingQuote.items.push({desc:'', make:'', code:'', qty:1, price:0, uom:'Nos.', country:'', section_id:valid?sectionId:''});
   renderLineItems();
   renderTotals();
-  // focus the new row's make field
   setTimeout(()=>{
-    const inputs = document.querySelectorAll('.li-make-input');
-    if(inputs.length) inputs[inputs.length-1].focus();
-  }, 50);
+    const inputs=[...document.querySelectorAll('.li-make-input')].filter(input=>input.dataset.sectionId===(valid?sectionId:''));
+    if(inputs.length)inputs[inputs.length-1].focus();
+  },50);
+}
+
+function addQuoteSection(){
+  if(!Array.isArray(editingQuote.sections))editingQuote.sections=[];
+  const existing=new Set(quoteSections(editingQuote).map(section=>section.id));
+  let id=`SEC${Date.now().toString(36)}`,n=1;
+  while(existing.has(id))id=`SEC${Date.now().toString(36)}_${n++}`;
+  editingQuote.sections.push({id,name:''});
+  renderLineItems();renderTotals();
+  setTimeout(()=>document.querySelector(`[data-section-name="${id}"]`)?.focus(),50);
+}
+function updateQuoteSectionName(id,value){
+  const section=(editingQuote.sections||[]).find(row=>String(row.id)===String(id));
+  if(section)section.name=value;
+  renderTotals();
+}
+function moveLineItemSection(index,sectionId){
+  const valid=quoteSections(editingQuote).some(section=>section.id===sectionId);
+  editingQuote.items[index].section_id=valid?sectionId:'';
+  renderLineItems();renderTotals();
+}
+function removeQuoteSection(id){
+  const assigned=(editingQuote.items||[]).filter(item=>String(item.section_id||'')===String(id)).length;
+  if(assigned&&!confirm(`Remove this section? Its ${assigned} item${assigned===1?'':'s'} will be kept under Other items.`))return;
+  editingQuote.items.forEach(item=>{if(String(item.section_id||'')===String(id))delete item.section_id;});
+  editingQuote.sections=quoteSections(editingQuote).filter(section=>section.id!==id);
+  renderLineItems();renderTotals();
+}
+
+function lineItemEditorRow(it,i,sections){
+  return `<tr class="li-row" data-idx="${i}">
+    <td class="muted" style="text-align:center;padding:11px 4px">${i+1}</td>
+    <td>
+      <div class="ac-wrap">
+        <input class="li-make-input" data-field="make" data-idx="${i}" data-section-id="${escapeHTML(String(it.section_id||''))}" value="${escapeHTML(it.make)}" placeholder="Search products...">
+        <div class="ac-list" data-idx="${i}"></div>
+      </div>
+      ${sections.length?`<select class="li-section-select" aria-label="Section for item ${i+1}" onchange="moveLineItemSection(${i},this.value)"><option value="">Other items</option>${sections.map((section,index)=>`<option value="${escapeHTML(section.id)}" ${String(it.section_id||'')===section.id?'selected':''}>${escapeHTML(quoteSectionTitle(section,index))}</option>`).join('')}</select>`:''}
+    </td>
+    <td><input data-field="desc" data-idx="${i}" value="${escapeHTML(it.desc)}" placeholder="Description"></td>
+    <td><input data-field="code" data-idx="${i}" value="${escapeHTML(it.code||'')}"></td>
+    <td><input data-field="uom" data-idx="${i}" value="${escapeHTML(it.uom||'Nos.')}"></td>
+    <td class="num"><input data-field="qty" data-idx="${i}" type="number" step="any" value="${it.qty||0}"></td>
+    <td class="num"><input data-field="price" data-idx="${i}" type="number" step="0.01" value="${it.price||0}"></td>
+    <td class="li-amt">${fmtINR((it.qty||0)*(it.price||0))}</td>
+    <td><button class="btn btn-icon btn-ghost" title="Remove" onclick="removeLineItem(${i})">×</button></td>
+  </tr>`;
 }
 
 function renderLineItems(){
-  const body = document.getElementById('liBody');
-  if(!body) return;
-  const q = editingQuote;
-  body.innerHTML = q.items.map((it,i)=>`
-    <tr class="li-row" data-idx="${i}">
-      <td class="muted" style="text-align:center;padding:11px 4px">${i+1}</td>
-      <td>
-        <div class="ac-wrap">
-          <input class="li-make-input" data-field="make" data-idx="${i}" value="${escapeHTML(it.make)}" placeholder="Search products...">
-          <div class="ac-list" data-idx="${i}"></div>
-        </div>
-      </td>
-      <td><input data-field="desc" data-idx="${i}" value="${escapeHTML(it.desc)}" placeholder="Description"></td>
-      <td><input data-field="code" data-idx="${i}" value="${escapeHTML(it.code||'')}"></td>
-      <td><input data-field="uom" data-idx="${i}" value="${escapeHTML(it.uom||'Nos.')}"></td>
-      <td class="num"><input data-field="qty" data-idx="${i}" type="number" step="any" value="${it.qty||0}"></td>
-      <td class="num"><input data-field="price" data-idx="${i}" type="number" step="0.01" value="${it.price||0}"></td>
-      <td class="li-amt">${fmtINR((it.qty||0)*(it.price||0))}</td>
-      <td><button class="btn btn-icon btn-ghost" title="Remove" onclick="removeLineItem(${i})">×</button></td>
-    </tr>
-  `).join('');
-
-  // wire input events
-  body.querySelectorAll('input').forEach(inp=>{
-    inp.addEventListener('input', onLineInput);
-    inp.addEventListener('blur', onLineBlur);
-    if(inp.classList.contains('li-make-input')){
-      inp.addEventListener('input', onMakeInput);
-      inp.addEventListener('blur', e=>setTimeout(()=>hideAC(+inp.dataset.idx), 200));
-      inp.addEventListener('keydown', e=>onACKeydown(e, +inp.dataset.idx));
+  const body=document.getElementById('liBody');if(!body)return;
+  const q=editingQuote,sections=quoteSections(q),groups=quoteGroupedItems(q,true);
+  q.sections=sections;
+  body.innerHTML=groups.map(group=>{
+    if(!sections.length)return group.items.map(row=>lineItemEditorRow(row.item,row.index,sections)).join('');
+    if(!group.id){
+      if(!group.items.length)return '';
+      return `<tr class="quote-section-head quote-section-other"><td colspan="7"><b>Other items</b></td><td class="li-amt">${fmtINR(group.subtotal)}</td><td></td></tr>${group.items.map(row=>lineItemEditorRow(row.item,row.index,sections)).join('')}`;
     }
+    return `<tr class="quote-section-head"><td><span class="quote-section-letter">${escapeHTML(group.letter)}</span></td><td colspan="5"><input class="quote-section-name" data-section-name="${escapeHTML(group.id)}" value="${escapeHTML(group.name)}" placeholder="Name this section, e.g. Audio system" oninput="updateQuoteSectionName('${escapeHTML(group.id)}',this.value)"></td><td colspan="2" class="quote-section-actions"><button class="btn btn-sm" onclick="addLineItem('${escapeHTML(group.id)}')">+ Add row</button><button class="btn btn-sm btn-ghost" onclick="removeQuoteSection('${escapeHTML(group.id)}')">Remove section</button></td><td></td></tr>
+      ${group.items.map(row=>lineItemEditorRow(row.item,row.index,sections)).join('')}
+      <tr class="quote-section-subtotal"><td colspan="7">${escapeHTML(group.title)} subtotal</td><td class="li-amt">${fmtINR(group.subtotal)}</td><td></td></tr>`;
+  }).join('');
+  body.querySelectorAll('input[data-field]').forEach(inp=>{
+    inp.addEventListener('input',onLineInput);inp.addEventListener('blur',onLineBlur);
+    if(inp.classList.contains('li-make-input')){inp.addEventListener('input',onMakeInput);inp.addEventListener('blur',()=>setTimeout(()=>hideAC(+inp.dataset.idx),200));inp.addEventListener('keydown',e=>onACKeydown(e,+inp.dataset.idx));}
   });
 }
 
@@ -2974,7 +3055,8 @@ function renderTotals(){
 
   document.getElementById('totalsBox').innerHTML = `
     <div class="totals">
-      <div class="lbl muted" style="font-size:11px">${q.items.length} item${q.items.length===1?'':'s'}</div><div class="val"></div>
+      <div class="lbl muted" style="font-size:11px">${q.items.length} item${q.items.length===1?'':'s'}${quoteHasSections(q)?` · ${quoteSections(q).length} section${quoteSections(q).length===1?'':'s'}`:''}</div><div class="val"></div>
+      ${quoteSectionTotalsMarkup(q)}
       ${q.discount ? `<div class="lbl">Discount</div><div class="val">- ${fmtINR(q.discount)}</div>` : ''}
       <div class="lbl">${taxLabel}</div><div class="val">${fmtINR(tax)}</div>
       ${taxBreakdown}
@@ -2995,6 +3077,9 @@ function saveQuote(forPrint=false){
   q.tax_pct = q.tax_type==='NONE' ? 0 : 18;
   q.discount = +document.getElementById('eq_discount').value || 0;
   q.notes = document.getElementById('eq_notes').value;
+  q.sections = quoteSections(q);
+  const validSectionIds=new Set(q.sections.map(section=>section.id));
+  q.items.forEach(item=>{if(!validSectionIds.has(String(item.section_id||'')))delete item.section_id;});
   q.updated = new Date().toISOString();
 
   // A typed client name is enough. Reuse an exact existing name when possible;
@@ -3686,7 +3771,7 @@ async function printQuote(id){
           </tr>
         </thead>
         <tbody>
-          ${q.items.map((it,i)=>`
+          ${quoteGroupedItems(q).map(group=>`${group.title?`<tr class="print-section-row"><td colspan="6">${escapeHTML(group.title)}</td></tr>`:''}${group.items.map(({item:it,index:i})=>`
             <tr>
               <td>${i+1}</td>
               <td>
@@ -3697,14 +3782,15 @@ async function printQuote(id){
               <td class="num">${fmtNum(it.qty)}</td>
               <td class="num">${fmtINR2(it.price)}</td>
               <td class="num"><b>${fmtINR2((it.qty||0)*(it.price||0))}</b></td>
-            </tr>
-          `).join('')}
+            </tr>`).join('')}${group.title?`<tr class="print-section-subtotal"><td colspan="5">${escapeHTML(group.title)} subtotal</td><td class="num"><b>${fmtINR2(group.subtotal)}</b></td></tr>`:''}`).join('')}
         </tbody>
       </table>
 
       <table class="print-totals">
+        ${quoteHasSections(q)?quoteGroupedItems(q).filter(group=>group.items.length).map(group=>`<tr><td>${escapeHTML(group.title)} subtotal</td><td>${fmtINR2(group.subtotal)}</td></tr>`).join(''):''}
+        ${quoteHasSections(q)?`<tr><td><b>Subtotal (all sections)</b></td><td><b>${fmtINR2(sub)}</b></td></tr>`:''}
         ${(q.discount > 0 || q.tax_type !== 'NONE') ? `
-          <tr><td>Subtotal</td><td>${fmtINR2(sub)}</td></tr>
+          ${quoteHasSections(q)?'':`<tr><td>Subtotal</td><td>${fmtINR2(sub)}</td></tr>`}
           ${q.discount ? `<tr><td>Discount</td><td>− ${fmtINR2(q.discount)}</td></tr>` : ''}
           ${q.discount ? `<tr><td>After discount</td><td>${fmtINR2(afterDisc)}</td></tr>` : ''}
           ${taxRows}
@@ -5587,7 +5673,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-16-ipad-one-page-print-v16';
+  const BUILD_VERSION = '2026-10-21-quotation-sections-v17';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
