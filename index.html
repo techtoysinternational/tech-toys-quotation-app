@@ -187,6 +187,7 @@ hr{border:none;border-top:1px solid var(--border);margin:16px 0}
   .print-tbl tr,.print-totals,.print-foot,.print-sign,.print-thanks { break-inside:avoid; page-break-inside:avoid; }
 }
 #print-area{display:none}
+body.pdf-exporting #print-area{display:block!important;position:fixed;left:-10000px;top:0;background:#fff;z-index:-1;pointer-events:none}
 .print-page{width:210mm;min-height:297mm;padding:18mm 16mm;margin:0 auto;background:#fff;color:#222;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11pt;line-height:1.45;display:flex;flex-direction:column}
 .print-page.quote-one-page{height:270mm;min-height:270mm;padding:0;overflow:hidden;display:block}
 .quote-one-page .quote-print-content{width:100%;height:270mm;min-height:270mm;padding:10mm 12mm;display:flex;flex-direction:column;transform-origin:top left}
@@ -420,6 +421,8 @@ const FIREBASE_CONFIG = {
   appId: "1:609352082860:web:ec339fbea8bebcb110c609"
 };
 </script>
+
+<script src="./assets/html2pdf.bundle.min.js"></script>
 
 <script>
 /* ================================================================
@@ -917,7 +920,7 @@ function setPrintBusy(busy,label='Preparing print…') {
     else{button.disabled=false;if(button.dataset.originalLabel)button.textContent=button.dataset.originalLabel;delete button.dataset.originalLabel;}
   });
 }
-async function saveAndPrintQuote(){
+async function saveAndPrintQuote(printOptions={}){
   if(SAVE_PRINT_BUSY || QUOTE_PRINT_BUSY)return;
   SAVE_PRINT_BUSY=true;setPrintBusy(true,'Saving…');
   const started=performance.now();
@@ -925,7 +928,7 @@ async function saveAndPrintQuote(){
     const id=saveQuote(true);
     if(!id)return;
     const saveMs=performance.now()-started;
-    await printQuote(id);
+    await printQuote(id,printOptions);
     if(window.__techToysPrintTiming)window.__techToysPrintTiming.saveMs=saveMs;
     navigate('quote',id);
   }catch(err){toast('Save / print could not finish: '+err.message,'error');}
@@ -3697,10 +3700,47 @@ function importData(file){
 /* ============================================================
    PRINT / PDF EXPORT
    ============================================================ */
-async function printQuote(id){
+function cleanQuotePdfFilename(q){
+  const base=String(q?.pi_no||q?.id||'quotation').trim().replace(/[^a-z0-9._-]+/gi,'-').replace(/^-+|-+$/g,'')||'quotation';
+  return `${base}.pdf`;
+}
+async function createCleanQuotePdf(q){
+  if(typeof html2pdf!=='function')throw new Error('PDF generator is unavailable');
+  const page=document.querySelector('#print-area .print-page');
+  if(!page)throw new Error('Quotation print page is unavailable');
+  document.body.classList.add('pdf-exporting');
+  try{
+    const worker=html2pdf().set({
+      margin:0,
+      filename:cleanQuotePdfFilename(q),
+      image:{type:'jpeg',quality:.98},
+      html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,scrollX:0,scrollY:0},
+      jsPDF:{unit:'mm',format:'a4',orientation:'portrait',compress:true},
+      pagebreak:{mode:['css','legacy'],avoid:['.print-tbl tr','.print-totals','.print-foot','.print-sign','.print-thanks']}
+    }).from(page).toPdf();
+    const pdf=await worker.get('pdf');
+    return pdf.output('blob');
+  }finally{document.body.classList.remove('pdf-exporting');}
+}
+function openCleanQuotePdf(blob,q,target){
+  const url=URL.createObjectURL(blob);
+  if(target&&!target.closed){target.location.replace(url);}
+  else{
+    const link=document.createElement('a');link.href=url;link.download=cleanQuotePdfFilename(q);link.target='_blank';
+    document.body.appendChild(link);link.click();link.remove();
+  }
+  setTimeout(()=>URL.revokeObjectURL(url),120000);
+}
+async function printQuote(id,printOptions={}){
   if(QUOTE_PRINT_BUSY)return;
   const q = DB.quotes.find(x=>x.id===id);
   if(!q) return;
+  const useCleanPdf=!printOptions.native&&!printOptions.prepareOnly&&typeof html2pdf==='function';
+  const pdfWindow=useCleanPdf&&!printOptions.returnBlob?window.open('about:blank','_blank'):null;
+  if(pdfWindow){
+    pdfWindow.document.write('<!doctype html><title>Preparing quotation PDF</title><body style="font:16px -apple-system,BlinkMacSystemFont,sans-serif;padding:32px;color:#222">Preparing your clean quotation PDF…</body>');
+    pdfWindow.document.close();
+  }
   QUOTE_PRINT_BUSY=true;setPrintBusy(true);
   const printStarted=performance.now();
   try {
@@ -3830,7 +3870,17 @@ async function printQuote(id){
   await new Promise(resolve=>requestAnimationFrame(resolve));
   const printScale=fitSinglePageQuote();
   window.__techToysPrintTiming={items:q.items.length,generationMs:prepared-printStarted,readyMs:performance.now()-printStarted,scale:printScale};
-  window.print();
+  if(printOptions.prepareOnly)return null;
+  if(useCleanPdf){
+    try{
+      const blob=await createCleanQuotePdf(q);
+      if(printOptions.returnBlob){if(pdfWindow&&!pdfWindow.closed)pdfWindow.close();return blob;}
+      openCleanQuotePdf(blob,q,pdfWindow);
+    }catch(error){
+      if(pdfWindow&&!pdfWindow.closed)pdfWindow.close();
+      console.error('Clean PDF generation failed',error);toast('Opening the browser print dialog instead.','error');window.print();
+    }
+  }else window.print();
   } finally {QUOTE_PRINT_BUSY=false;setPrintBusy(false);}
 }
 
@@ -5674,7 +5724,7 @@ initOwnerAccess();
 /* Tech Toys Auto Update Fix
    Clears old PWA caches and forces the newest GitHub Pages version to load. */
 (function(){
-  const BUILD_VERSION = '2026-10-21-print-terms-layout-v18';
+  const BUILD_VERSION = '2026-10-21-clean-pdf-export-v19';
   const BUILD_KEY = 'techToys_build_version';
 
   async function clearOldCaches(){
